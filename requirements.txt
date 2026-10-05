@@ -1,0 +1,4 @@
+# Colab / Linux. LIBERO is Linux-only.
+lerobot[libero]==0.6.1
+imageio-ffmpeg
+pandas

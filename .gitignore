@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+data/raw/
+data/processed/*.npz
+outputs/
+checkpoints/
+*.mp4
+!assets/*.mp4
+check_*.jpg
+.pytest_cache/
