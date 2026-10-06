@@ -146,15 +146,25 @@ class TaskEnv:
         self.raw_obs: dict = {}
 
     # ---- episode control --------------------------------------------------------------------
-    def reset(self, init_state_id: int | None = None, seed: int | None = None) -> dict:
+    def reset(self, init_state_id: int | None = None, seed: int | None = None,
+              object_shift: dict[str, np.ndarray] | None = None) -> dict:
         """init_state_id in [0, 50): one of LIBERO's fixed evaluation scenes.
         init_state_id=None: a fresh scene sampled from the task's placement regions (use a seed
-        for reproducibility). Training data must only ever come from fresh scenes."""
+        for reproducibility). Training data must only ever come from fresh scenes.
+        object_shift: {BOWL: (dx, dy), PLATE: (dx, dy)} moves objects beyond LIBERO's own +-1.5 cm
+        placement noise (data generation uses this for diversity)."""
         if seed is not None:
             self._env.seed(seed)
         obs = self._env.reset()
         if init_state_id is not None:
             obs = self._env.set_init_state(self.init_states[init_state_id])
+        if object_shift:
+            sim = self._env.env.sim
+            for name, d in object_shift.items():
+                q = np.array(sim.data.get_joint_qpos(f"{name}_joint0"))   # free joint: xyz + quaternion (wxyz)
+                q[:2] += np.asarray(d)[:2]
+                sim.data.set_joint_qpos(f"{name}_joint0", q)
+            sim.forward()
         for _ in range(NUM_SETTLE_STEPS):
             obs, _, _, _ = self._env.step(NOOP)
         self.t = 0
