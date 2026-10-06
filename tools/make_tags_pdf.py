@@ -23,10 +23,11 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from p2p.human.markers import DICT, TAG_SPECS  # single source of truth for ids and sizes
+from p2p.config import NOMINAL_TAGS  # single source of truth for ids and sizes  # noqa: E402
+from p2p.human.markers import DICT  # noqa: E402
 
-# id -> (printed label, black-square side in mm)
-TAG_SIZES_MM = {i: ((role.upper() if i != 3 else "BOWL-small"), side * 1000) for i, (role, side) in TAG_SPECS.items()}
+# id -> (printed label, nominal black-square side in mm)
+TAG_SIZES_MM = {i: ((role.upper() if i != 3 else "BOWL-small"), side * 1000) for i, (role, side) in NOMINAL_TAGS.items()}
 
 
 def marker_bits(tag_id: int) -> np.ndarray:

@@ -105,21 +105,42 @@ class StrayRecording:
         camera positions do not depend on axis conventions, which lets us validate ARKit against
         the table tag without having to trust ARKit's camera-axis convention (see check_recording).
         """
+        if hasattr(self, "_odo"):
+            return self._odo
         path = self.root / "odometry.csv"
         if not path.exists():
+            self._odo = None
             return None
         import csv
 
         with open(path) as f:
             rows = list(csv.reader(f))
         header = [h.strip() for h in rows[0]]
-        data = np.array([[float(v) for v in r] for r in rows[1:] if r], dtype=np.float64)
+        # Real files end rows with empty fields (distortion centre is often blank): read those as NaN.
+        data = np.array([[float(v) if v.strip() else np.nan for v in r] for r in rows[1:] if r], dtype=np.float64)
         col = {h: i for i, h in enumerate(header)}
-        return {
+        out = {
+            "timestamp": data[:, col["timestamp"]] if "timestamp" in col else np.arange(len(data)) / self.fps,
             "frame": data[:, col["frame"]].astype(int) if "frame" in col else np.arange(len(data)),
             "position": data[:, [col["x"], col["y"], col["z"]]],
             "quat_xyzw": data[:, [col["qx"], col["qy"], col["qz"], col["qw"]]],
         }
+        if all(k in col for k in ("fx", "fy", "cx", "cy")):
+            out["intrinsics"] = data[:, [col["fx"], col["fy"], col["cx"], col["cy"]]]
+        self._odo = out
+        return out
+
+    def K_rgb_at(self, index: int) -> np.ndarray:
+        """Intrinsics for one frame. The focal length is NOT constant: autofocus changes it
+        (measured up to 3.4% within one 9 s clip), so newer app versions store fx, fy, cx, cy per
+        frame. A 3% focal error is a 3% error in every lateral offset we back-project."""
+        odo = self.odometry()
+        if odo is not None and "intrinsics" in odo:
+            i = min(index, len(odo["intrinsics"]) - 1)
+            fx, fy, cx, cy = odo["intrinsics"][i]
+            if np.all(np.isfinite([fx, fy, cx, cy])):
+                return np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1.0]])
+        return self.K_rgb
 
     # ---- geometry -----------------------------------------------------------------------
     @property

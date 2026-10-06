@@ -18,16 +18,13 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from p2p.config import NOMINAL_TAGS, PRINT_SCALE
+
 DICT = cv2.aruco.DICT_4X4_50
 
-# id -> (role, black-square side in metres). The side length is what PnP needs to recover
-# metric scale, so if your printed square measures e.g. 149 mm, put 0.149 here.
-TAG_SPECS: dict[int, tuple[str, float]] = {
-    0: ("table", 0.150),
-    1: ("bowl", 0.040),
-    2: ("plate", 0.050),
-    3: ("bowl", 0.030),
-}
+# id -> (role, black-square side in metres AS PRINTED). The side length is what PnP needs to
+# recover metric scale; the measured print scale is set in p2p/config.py.
+TAG_SPECS: dict[int, tuple[str, float]] = {i: (role, side * PRINT_SCALE) for i, (role, side) in NOMINAL_TAGS.items()}
 
 
 @dataclass

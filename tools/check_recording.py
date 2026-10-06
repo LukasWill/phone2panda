@@ -36,7 +36,7 @@ def contact_sheet(rec: StrayRecording, out_path: Path, n: int = 8):
     for i, frame in rec.rgb_frames():
         if i not in idx:
             continue
-        for t in detect_tags(frame, rec.K_rgb).values():
+        for t in detect_tags(frame, rec.K_rgb_at(i)).values():
             cv2.polylines(frame, [t.corners.astype(np.int32)], True, (0, 255, 0), 4)
             cv2.putText(frame, t.role, tuple(t.corners[0].astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 4)
         tile = cv2.resize(frame, (480, int(480 * frame.shape[0] / frame.shape[1])))
@@ -56,10 +56,31 @@ def check(folder: Path) -> bool:
     if not 4.0 <= dur <= 15.0:
         print(f"{WARN} duration {dur:.1f} s is outside the planned 5-12 s")
 
+    # 0. things that need no tags: phone motion (ARKit) and how close anything got to the phone ---
+    odo = rec.odometry()
+    if odo is not None:
+        P, Q = odo["position"], odo["quat_xyzw"]
+        rot = np.degrees(2 * np.arccos(np.clip(np.abs(Q @ Q[0]), 0, 1))).max()
+        moved_arkit = np.linalg.norm(P - P[0], axis=1).max()
+        flag = OK if moved_arkit < 0.10 and rot < 20 else WARN
+        print(f"{flag} ARKit: phone moved up to {100 * moved_arkit:.1f} cm and rotated up to {rot:.0f} deg "
+              f"(aim < 10 cm, < 20 deg)")
+    closest, at = np.inf, -1
+    for i in range(0, len(rec.depth_paths), 4):
+        d, c = rec.depth(i), rec.confidence(i)
+        valid = (d > 0) & ((c >= 1) if c is not None else True)
+        if valid.sum() > 100:
+            q = float(np.percentile(d[valid], 0.5))
+            if q < closest:
+                closest, at = q, i
+    flag = OK if closest >= 0.28 else WARN
+    print(f"{flag} closest thing to the phone: {100 * closest:.0f} cm at frame {at} "
+          f"(want >= 28 cm: closer is blurry and below the LiDAR's reliable range)")
+
     # One pass over the video (every 2nd frame): tags + per-frame table frame -----------------
     per_frame = {}
     for i, frame in rec.rgb_frames(step=2):
-        tags = detect_tags(frame, rec.K_rgb)
+        tags = detect_tags(frame, rec.K_rgb_at(i))
         per_frame[i] = (tags, table_frame(tags))
 
     # 1. a reference frame in the first second where all three tags are visible ---------------
@@ -80,7 +101,7 @@ def check(folder: Path) -> bool:
     # 2. PnP distance vs LiDAR depth --------------------------------------------------------------
     for t in tags.values():
         p = t.center_cam
-        uv = (rec.K_rgb @ p)[:2] / p[2]
+        uv = (rec.K_rgb_at(ref) @ p)[:2] / p[2]
         z = rec.depth_at_rgb_pixel(ref, uv[None])[0]
         if np.isnan(z):
             print(f"{WARN} no valid LiDAR depth at the {t.role} tag")
@@ -95,6 +116,15 @@ def check(folder: Path) -> bool:
     h, tilt = g["height_above_table_m"], g["tilt_from_vertical_deg"]
     flag = OK if (0.3 <= h <= 0.8 and 15 <= tilt <= 60) else WARN
     print(f"{flag} camera {h:.2f} m above table, tilted {tilt:.0f} deg from straight-down (aim: 0.35-0.7 m, 25-55 deg)")
+    # which way is "away from you" in the image? (table +y, set by how the sheet is taped)
+    K0 = rec.K_rgb_at(ref)
+    T_cam_table = np.linalg.inv(T_ref)
+    o, fwd = transform(T_cam_table, np.array([[0, 0, 0], [0, 0.1, 0]]))
+    du, dv = (K0 @ fwd)[:2] / fwd[2] - (K0 @ o)[:2] / o[2]
+    ang = float(np.degrees(np.arctan2(du, -dv)))
+    flag = OK if abs(ang) < 45 else WARN
+    print(f"{flag} 'away from you' points {ang:+.0f} deg from image-up (want within 45: hold the phone in "
+          f"landscape so the video looks like what you see)")
     seen = {i: T for i, (_, T) in per_frame.items() if T is not None}
     frac_table = len(seen) / len(per_frame)
     flag = OK if frac_table >= 0.8 else WARN
@@ -107,7 +137,6 @@ def check(folder: Path) -> bool:
           f"(handheld is fine; aim < 10 cm and < 20 deg to avoid blur)")
 
     # 4. ARKit odometry vs table tag: camera displacement from the reference frame -----------------
-    odo = rec.odometry()
     if odo is None or len(odo["position"]) < rec.n_rgb * 0.9:
         print(f"{WARN} odometry.csv missing or short - needed for a moving camera")
     elif moved < 0.02:
