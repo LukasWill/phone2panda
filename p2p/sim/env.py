@@ -122,7 +122,7 @@ class TaskEnv:
     should run on a GPU runtime (MUJOCO_GL=egl), because software rendering is very slow.
     """
 
-    def __init__(self, render: bool = True, camera_size: int = 256):
+    def __init__(self, render: bool = True, camera_size: int = 256, hard_reset: bool = True):
         ensure_libero_config()
         os.environ.setdefault("MUJOCO_GL", "egl")
         from libero.libero import benchmark, get_libero_path
@@ -138,6 +138,10 @@ class TaskEnv:
         kwargs = (dict(camera_heights=camera_size, camera_widths=camera_size) if render
                   else dict(use_camera_obs=False, has_offscreen_renderer=False))
         self._env = OffScreenRenderEnv(bddl_file_name=bddl, **kwargs)
+        # hard_reset=True rebuilds the whole MuJoCo model on every reset (~1.3 s), as LeRobot's eval does.
+        # A soft reset (~0.13 s) is exact enough when the init state is set right after, and is what we
+        # use for the thousands of physics-only replays.
+        self._env.env.hard_reset = hard_reset
         self.t = 0
         self.raw_obs: dict = {}
 
