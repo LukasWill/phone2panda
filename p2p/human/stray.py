@@ -94,6 +94,33 @@ class StrayRecording:
             return None
         return cv2.imread(str(self.conf_paths[min(index, len(self.conf_paths) - 1)]), cv2.IMREAD_UNCHANGED)
 
+    # ---- camera motion (ARKit visual-inertial odometry) -------------------------------------
+    def odometry(self) -> dict[str, np.ndarray] | None:
+        """Per-frame ARKit camera pose as stored by the app: position (N,3) in metres and
+        quaternion (N,4, x y z w), in ARKit's session frame (gravity-aligned, origin = where the
+        recording started).
+
+        This is what makes a HANDHELD phone usable: every frame has its own camera pose, so hand
+        points can be moved into one fixed frame even though the camera moves. Distances between
+        camera positions do not depend on axis conventions, which lets us validate ARKit against
+        the table tag without having to trust ARKit's camera-axis convention (see check_recording).
+        """
+        path = self.root / "odometry.csv"
+        if not path.exists():
+            return None
+        import csv
+
+        with open(path) as f:
+            rows = list(csv.reader(f))
+        header = [h.strip() for h in rows[0]]
+        data = np.array([[float(v) for v in r] for r in rows[1:] if r], dtype=np.float64)
+        col = {h: i for i, h in enumerate(header)}
+        return {
+            "frame": data[:, col["frame"]].astype(int) if "frame" in col else np.arange(len(data)),
+            "position": data[:, [col["x"], col["y"], col["z"]]],
+            "quat_xyzw": data[:, [col["qx"], col["qy"], col["qz"], col["qw"]]],
+        }
+
     # ---- geometry -----------------------------------------------------------------------
     @property
     def K_depth(self) -> np.ndarray:

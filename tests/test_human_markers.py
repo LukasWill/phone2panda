@@ -22,7 +22,7 @@ def test_tags_and_depth_recover_scene(tmp_path):
     T = table_frame(tags)
     assert T is not None
     # camera centre in the table frame vs ground truth (which uses the same frame)
-    assert np.linalg.norm(T[:3, 3] - gt["eye"]) < 0.01
+    assert np.linalg.norm(T[:3, 3] - gt["eye"][0]) < 0.01
     plate = transform(T, tags[2].center_cam)[0]
     bowl = transform(T, tags[1].center_cam)[0]
     assert np.linalg.norm(plate[:2] - gt["plate"][:2]) < 0.012
