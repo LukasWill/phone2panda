@@ -177,8 +177,9 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     gap[:k_lift] = False
     bowl_filled[gap] = pinch[gap] - grasp_off
     k_peak = k_lift + int(np.nanargmax(bowl_filled[k_lift:, 2]))
-    low = np.where(bowl_filled[k_peak:, 2] <= bowl_end[2] + 0.012)[0]
-    k_down = k_peak + int(low[0]) if len(low) else min(k_peak + 1, N - 1)
+    # set-down = the bowl stays within 1.2 cm of its final height for 0.2 s (a run, so one noisy frame cannot trigger it)
+    low = first_run(np.nan_to_num(bowl_filled[k_peak:, 2], nan=1.0) <= bowl_end[2] + 0.012, n=max(3, int(0.2 * fps)))
+    k_down = k_peak + low if low is not None else min(k_peak + 1, N - 1)
     # release: after set-down, the fingers open or the hand moves away from where it set the bowl down
     k_release = min(k_down + int(0.3 * fps), N - 1)
     if np.isfinite(pinch[k_down, 0]):
