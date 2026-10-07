@@ -1,7 +1,5 @@
 # phone2panda
 
-Work in progress (submission for the Humanoid robot-learning intern challenge, due 9 Oct 2026).
-
 Phone recordings (iPhone LiDAR) of me putting a bowl on a plate are turned into Panda robot behaviour in LIBERO
 (task: LIBERO-Goal "put the bowl on the plate").
 
