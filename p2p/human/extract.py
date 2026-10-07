@@ -162,14 +162,23 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     k_lift = first_run(lifted)
     if k_lift is None:
         raise RuntimeError(f"{folder.name}: the bowl tag never rises 1.5 cm - was the bowl lifted, and is its tag visible?")
-    above_end = (bowl[:, 2] > bowl_end[2] + 0.012) & np.isfinite(bowl[:, 2])
-    k_down = int(np.where(above_end)[0][-1]) + 1 if above_end.any() else k_lift + 1
     fps = 1.0 / np.median(np.diff(t))
     # grasp: the hand is (nearly) still on the rim just before lift-off -> median pinch over that window
     win = (t >= t[k_lift] - 0.35) & (t <= t[k_lift] - 0.05) & np.isfinite(pinch[:, 0])
     if not win.any():
         win = (t >= t[k_lift] - 0.8) & (t <= t[k_lift]) & np.isfinite(pinch[:, 0])
     k_grasp = int(np.where(win)[0][len(np.where(win)[0]) // 2]) if win.any() else max(k_lift - int(0.2 * fps), 0)
+    # While carried, the bowl tag is often hidden (your hand is between the phone and the bowl, and the
+    # bowl tilts). But a held bowl moves rigidly with your fingers, so we fill those gaps from the pinch
+    # point: bowl = pinch - (pinch at grasp - bowl at start). Events then use this filled track.
+    grasp_off = (np.nanmedian(pinch[win], 0) if win.any() else pinch[k_grasp]) - bowl_start
+    bowl_filled = bowl.copy()
+    gap = ~np.isfinite(bowl[:, 0]) & np.isfinite(pinch[:, 0])
+    gap[:k_lift] = False
+    bowl_filled[gap] = pinch[gap] - grasp_off
+    k_peak = k_lift + int(np.nanargmax(bowl_filled[k_lift:, 2]))
+    low = np.where(bowl_filled[k_peak:, 2] <= bowl_end[2] + 0.012)[0]
+    k_down = k_peak + int(low[0]) if len(low) else min(k_peak + 1, N - 1)
     # release: after set-down, the fingers open or the hand moves away from where it set the bowl down
     k_release = min(k_down + int(0.3 * fps), N - 1)
     if np.isfinite(pinch[k_down, 0]):
@@ -204,12 +213,13 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
         "grasp_ray_vs_lifted_cm": round(100 * float(np.linalg.norm(grasp_ray[:2] - grasp_lifted[:2])), 1),
         "rim_angle_deg": round(float(np.degrees(np.arctan2(radial[1], radial[0]))), 1),
         "place_offset_cm": round(100 * float(np.linalg.norm(place_offset)), 1),
-        "lift_height_cm": round(100 * float(np.nanmax(bowl[:, 2])), 1),
+        "lift_height_cm": round(100 * float(np.nanmax(bowl_filled[:, 2])), 1),
+        "bowl_filled_from_hand_frac": round(float(gap.mean()), 3),
         "human_success": human_ok,
     }
     return dict(name=folder.name, t=t, frames=np.array(frames), T_table_cam=np.array([T_tc[i] for i in frames]),
                 pinch=pinch, pinch_uv=pinch_uv, palm=palm, closing_dir=closing_dir, aperture=aperture,
-                hand_ok=hand_ok, bowl=bowl, bowl_tag=bowl_tag, plate_tag=plate_tag,
+                hand_ok=hand_ok, bowl=bowl_filled, bowl_tag=bowl_tag, plate_tag=plate_tag,
                 bowl_start=bowl_start, bowl_end=bowl_end, plate_center=plate_center,
                 grasp_point=grasp_ray, grasp_point_lifted=grasp_lifted,
                 events=np.array([0, k_grasp, k_lift, k_down, k_release, N - 1]),

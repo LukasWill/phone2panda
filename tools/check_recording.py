@@ -24,7 +24,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from p2p.human.markers import camera_geometry, detect_tags, table_frame, transform  # noqa: E402
+from p2p.human.markers import TAG_SPECS, camera_geometry, detect_tags, table_frame, transform  # noqa: E402
 from p2p.human.stray import StrayRecording  # noqa: E402
 
 OK, WARN, FAIL = "OK  ", "WARN", "FAIL"
@@ -73,9 +73,9 @@ def check(folder: Path) -> bool:
             q = float(np.percentile(d[valid], 0.5))
             if q < closest:
                 closest, at = q, i
-    flag = OK if closest >= 0.28 else WARN
+    flag = OK if closest >= 0.18 else WARN
     print(f"{flag} closest thing to the phone: {100 * closest:.0f} cm at frame {at} "
-          f"(want >= 28 cm: closer is blurry and below the LiDAR's reliable range)")
+          f"(your forearm passing at ~20 cm is normal; under 18 cm usually means the hand or bowl came too close)")
 
     # One pass over the video (every 2nd frame): tags + per-frame table frame -----------------
     per_frame = {}
@@ -109,7 +109,9 @@ def check(folder: Path) -> bool:
         diff = z - p[2]
         flag = OK if abs(diff) < 0.02 else (WARN if abs(diff) < 0.04 else FAIL)
         good &= flag != FAIL
-        print(f"{flag} {t.role:5s} tag: z from PnP {p[2]:.3f} m vs LiDAR {z:.3f} m (diff {100 * diff:+.1f} cm)")
+        side = TAG_SPECS[t.tag_id][1]
+        print(f"{flag} {t.role:5s} tag: z from PnP {p[2]:.3f} m vs LiDAR {z:.3f} m (diff {100 * diff:+.1f} cm; "
+              f"if LiDAR is right, this tag is {1000 * side * z / p[2]:.1f} mm, config says {1000 * side:.1f} mm)")
 
     # 3. camera placement and motion -------------------------------------------------------------
     g = camera_geometry(T_ref)
@@ -162,7 +164,8 @@ def check(folder: Path) -> bool:
         lift = float(np.max(bowl_z) - np.median(bowl_z[: max(3, len(bowl_z) // 10)]))
         frac = bowl_seen / total
         flag = OK if frac > 0.6 and lift > 0.04 else WARN
-        print(f"{flag} bowl tag seen in {100 * frac:.0f}% of frames; max lift {100 * lift:.1f} cm (want > 60% and > 4 cm)")
+        print(f"{flag} bowl tag seen in {100 * frac:.0f}% of frames; max lift seen {100 * lift:.1f} cm (want > 60% and > 4 cm; "
+              f"a low value usually means the tag was hidden while carrying)")
     plate0 = transform(T_ref, next(t for t in tags.values() if t.role == "plate").center_cam)[0]
     last = [i for i, (tg, T) in per_frame.items() if any(t.role == "bowl" for t in tg.values())]
     if last:
