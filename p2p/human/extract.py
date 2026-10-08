@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from p2p.config import HUMAN_BOWL_HEIGHT, HUMAN_BOWL_RIM_DIAMETER, HUMAN_PLATE_DIAMETER
+from p2p.config import DEMO_HAND, HUMAN_BOWL_HEIGHT, HUMAN_BOWL_RIM_DIAMETER, HUMAN_PLATE_DIAMETER
 from p2p.human.hands import INDEX_TIP, THUMB_TIP, WRIST, HandDetector, lift_hand, pick_hand
 from p2p.human.markers import detect_tags, inv_T, table_frame, to_T, transform
 from p2p.human.stray import StrayRecording
@@ -96,6 +96,37 @@ def first_run(mask: np.ndarray, n: int = 3) -> int | None:
     return None
 
 
+def upright_rotation(rec: StrayRecording, max_frames: int = 90) -> int:
+    """How many 90-deg CCW turns make 'away from you' (table +y) point up in the image."""
+    for i, bgr in rec.rgb_frames(step=10):
+        if i > max_frames:
+            break
+        K = rec.K_rgb_at(i)
+        T = table_frame(detect_tags(bgr, K))
+        if T is None:
+            continue
+        o, fwd = transform(inv_T(T), np.array([[0, 0, 0], [0, 0.1, 0]]))
+        du, dv = (K @ fwd)[:2] / fwd[2] - (K @ o)[:2] / o[2]
+        return int(round(np.degrees(np.arctan2(du, -dv)) / 90)) % 4
+    return 0
+
+
+def lift_from_hand(pinch: np.ndarray, bowl_start: np.ndarray, fps: float) -> int | None:
+    """Lift-off from the hand: it first comes to the rim (within 3 cm of the rim circle, below rim+3 cm),
+    then rises 2.5 cm above that contact height."""
+    R = HUMAN_BOWL_RIM_DIAMETER / 2
+    rim = bowl_start[2] + HUMAN_BOWL_HEIGHT
+    ok = np.isfinite(pinch[:, 0])
+    near = ok & (np.abs(np.linalg.norm(pinch[:, :2] - bowl_start[:2], axis=1) - R) < 0.03) & (pinch[:, 2] < rim + 0.03)
+    if not near.any():
+        return None
+    k0 = int(np.argmax(near))
+    up = ok & (pinch[:, 2] > pinch[k0, 2] + 0.025)
+    up[:k0] = False
+    k = first_run(up, n=3)
+    return k
+
+
 def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -> dict:
     rec = StrayRecording(folder)
     odo = rec.odometry()
@@ -103,6 +134,7 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     detector = detector or HandDetector()
     ts = odo["timestamp"] - odo["timestamp"][0] if odo is not None else np.arange(rec.n_rgb) / rec.fps
 
+    rot_k = upright_rotation(rec)
     frames, tag_T, bowl_cam, plate_cam, hands, prev = [], {}, {}, {}, {}, None
     for i, bgr in rec.rgb_frames(step=step):
         frames.append(i)
@@ -117,7 +149,7 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
                 bowl_cam[i] = t.center_cam
             elif t.role == "plate":
                 plate_cam[i] = t.center_cam
-        h = pick_hand(detector(bgr, int(1000 * ts[min(i, len(ts) - 1)])), prev)
+        h = pick_hand(detector(bgr, int(1000 * ts[min(i, len(ts) - 1)]), rot_k), prev, DEMO_HAND)
         prev = None if h is None else h.uv[WRIST]
         if h is not None:
             h3 = lift_hand(h, lambda uv, i=i: rec.depth_at_rgb_pixel(i, uv), K)
@@ -154,15 +186,21 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     bowl = bowl_tag - np.array([0, 0, z_rest])        # bowl bottom centre (it rests on the table at the start)
     bowl_start = np.nanmedian(bowl[early], 0) if np.isfinite(bowl[early]).any() else np.nanmedian(bowl[:15], 0)
     plate_center = np.nanmedian(plate_tag[early], 0) if np.isfinite(plate_tag[early]).any() else np.nanmedian(plate_tag, 0)
-    late = t > t[-1] - 0.7
-    bowl_end = np.nanmedian(bowl[late], 0) if np.isfinite(bowl[late]).any() else bowl[np.where(np.isfinite(bowl[:, 0]))[0][-1]]
+    # final bowl position: tag sightings in the last 40% of the clip, once the bowl has left its start
+    late = (t > t[0] + 0.6 * (t[-1] - t[0])) & np.isfinite(bowl[:, 0])
+    late &= np.linalg.norm(bowl[:, :2] - bowl_start[:2], axis=1) > 0.05
+    bowl_end_seen = bool(late.sum() >= 3)
+    bowl_end = np.nanmedian(bowl[late], 0) if bowl_end_seen else None
+    fps = 1.0 / np.median(np.diff(t))
 
-    # --- events (from the bowl) --------------------------------------------------------------------
+    # --- events (from the bowl; from the hand if the tag vanishes as soon as the bowl is lifted) -------
     lifted = (bowl[:, 2] > 0.015) & np.isfinite(bowl[:, 2])
     k_lift = first_run(lifted)
     if k_lift is None:
-        raise RuntimeError(f"{folder.name}: the bowl tag never rises 1.5 cm - was the bowl lifted, and is its tag visible?")
-    fps = 1.0 / np.median(np.diff(t))
+        k_lift = lift_from_hand(pinch, bowl_start, fps)
+    if k_lift is None:
+        raise RuntimeError(f"{folder.name}: no lift found (bowl tag never rises 1.5 cm and the hand is not tracked "
+                           f"rising from the rim)")
     # grasp: the hand is (nearly) still on the rim just before lift-off -> median pinch over that window
     win = (t >= t[k_lift] - 0.35) & (t <= t[k_lift] - 0.05) & np.isfinite(pinch[:, 0])
     if not win.any():
@@ -177,6 +215,8 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     gap[:k_lift] = False
     bowl_filled[gap] = pinch[gap] - grasp_off
     k_peak = k_lift + int(np.nanargmax(bowl_filled[k_lift:, 2]))
+    if bowl_end is None:   # bowl never seen at the end: final height ~ plate top (the plate tag lies on it)
+        bowl_end = np.array([np.nan, np.nan, plate_center[2]])
     # set-down = the bowl stays within 1.2 cm of its final height for 0.2 s (a run, so one noisy frame cannot trigger it)
     low = first_run(np.nan_to_num(bowl_filled[k_peak:, 2], nan=1.0) <= bowl_end[2] + 0.012, n=max(3, int(0.2 * fps)))
     k_down = k_peak + low if low is not None else min(k_peak + 1, N - 1)
@@ -189,6 +229,8 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
                 k_release = k
                 break
     hand_ok = np.isfinite(pinch[:, 0])
+    if not bowl_end_seen:   # fall back to where the hand put it down (LiDAR-based, so less exact): flagged
+        bowl_end = bowl_filled[k_down].copy()
 
     # --- grasp point on the rim: ray through the pinch pixel ∩ plane at rim height -------------
     rim_top = bowl_start[2] + HUMAN_BOWL_HEIGHT
@@ -217,6 +259,8 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
         "lift_height_cm": round(100 * float(np.nanmax(bowl_filled[:, 2])), 1),
         "bowl_filled_from_hand_frac": round(float(gap.mean()), 3),
         "human_success": human_ok,
+        "bowl_end_seen": bowl_end_seen,
+        "upright_rotation_k": rot_k,
     }
     return dict(name=folder.name, t=t, frames=np.array(frames), T_table_cam=np.array([T_tc[i] for i in frames]),
                 pinch=pinch, pinch_uv=pinch_uv, palm=palm, closing_dir=closing_dir, aperture=aperture,

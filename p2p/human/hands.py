@@ -86,38 +86,57 @@ class HandDetector:
             urllib.request.urlretrieve(MODEL_URL, path)
         return path
 
-    def __call__(self, bgr: np.ndarray, t_ms: int) -> list[Hand2D]:
+    def __call__(self, bgr: np.ndarray, t_ms: int, rot_k: int = 0) -> list[Hand2D]:
+        """rot_k: rotate the frame by rot_k*90 deg counter-clockwise before detection, so the hand is
+        seen upright. The phone stores frames in the sensor's landscape orientation, so a phone held
+        in portrait gives sideways frames, and MediaPipe finds sideways hands less reliably (measured on
+        one recording: 18% -> 76% of frames). Landmarks are mapped back to the original frame."""
         H, W = bgr.shape[:2]
         scale = self.process_width / W
         small = cv2.resize(bgr, (self.process_width, int(round(H * scale))), interpolation=cv2.INTER_AREA)
-        rgb = np.ascontiguousarray(small[:, :, ::-1])
+        rgb = np.ascontiguousarray(np.rot90(small, rot_k)[:, :, ::-1])
         out = []
         if self.backend == "legacy":
             res = self._hands.process(rgb)
             if not res.multi_hand_landmarks:
                 return out
-            for lm, wl, hd in zip(res.multi_hand_landmarks, res.multi_hand_world_landmarks, res.multi_handedness):
-                c = hd.classification[0]
-                out.append(Hand2D(np.array([[p.x * W, p.y * H] for p in lm.landmark]),
-                                  np.array([[p.x, p.y, p.z] for p in wl.landmark]), c.label, float(c.score)))
+            hands = [([(p.x, p.y) for p in lm.landmark], [(p.x, p.y, p.z) for p in wl.landmark],
+                      hd.classification[0].label, hd.classification[0].score)
+                     for lm, wl, hd in zip(res.multi_hand_landmarks, res.multi_hand_world_landmarks, res.multi_handedness)]
         else:
             res = self._hands.detect_for_video(self.mp.Image(image_format=self.mp.ImageFormat.SRGB, data=rgb), int(t_ms))
-            for lm, wl, hd in zip(res.hand_landmarks, res.hand_world_landmarks, res.handedness):
-                out.append(Hand2D(np.array([[p.x * W, p.y * H] for p in lm]),
-                                  np.array([[p.x, p.y, p.z] for p in wl]), hd[0].category_name, float(hd[0].score)))
+            hands = [([(p.x, p.y) for p in lm], [(p.x, p.y, p.z) for p in wl], hd[0].category_name, hd[0].score)
+                     for lm, wl, hd in zip(res.hand_landmarks, res.hand_world_landmarks, res.handedness)]
+        for xy, world, label, score in hands:
+            uv = unrotate(np.array(xy), rot_k) * np.array([W, H])
+            out.append(Hand2D(uv, np.array(world), label, float(score)))
         return out
 
     def close(self):
         self._hands.close()
 
 
-def pick_hand(hands: list[Hand2D], prev_uv: np.ndarray | None) -> Hand2D | None:
-    """The demonstrating hand: prefer the right hand, then continuity with the previous frame."""
+def unrotate(xy: np.ndarray, k: int) -> np.ndarray:
+    """Normalised (x, y) in an image rotated by np.rot90(., k) -> normalised (x, y) in the original image."""
+    x, y = xy[:, 0], xy[:, 1]
+    k %= 4
+    if k == 1:   # rot90 CCW: rotated (x, y) came from original (1 - y, x)
+        return np.stack([1 - y, x], 1)
+    if k == 2:
+        return np.stack([1 - x, 1 - y], 1)
+    if k == 3:   # rot90 CW: rotated (x, y) came from original (y, 1 - x)
+        return np.stack([y, 1 - x], 1)
+    return xy
+
+
+def pick_hand(hands: list[Hand2D], prev_uv: np.ndarray | None, hand: str = "right") -> Hand2D | None:
+    """The demonstrating hand (`hand` = "right" or "left"), then continuity with the previous frame."""
     if not hands:
         return None
+    want = (lambda h: h.is_right_hand) if hand == "right" else (lambda h: not h.is_right_hand)
     if prev_uv is not None:
-        return min(hands, key=lambda h: np.linalg.norm(h.uv[WRIST] - prev_uv) - 200 * h.is_right_hand)
-    return max(hands, key=lambda h: (h.is_right_hand, h.score))
+        return min(hands, key=lambda h: np.linalg.norm(h.uv[WRIST] - prev_uv) - 200 * want(h))
+    return max(hands, key=lambda h: (want(h), h.score))
 
 
 @dataclass

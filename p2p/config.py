@@ -15,3 +15,8 @@ HUMAN_BOWL_RIM_DIAMETER = 0.100
 HUMAN_BOWL_HEIGHT = 0.058
 HUMAN_PLATE_DIAMETER = 0.198
 HUMAN_PLATE_HEIGHT = 0.020
+
+# --- which hand demonstrates ----------------------------------------------------------------------
+# The robot can only grasp the bowl's LEFT rim in this LIBERO scene (a right-rim grasp collides when
+# placing), so demos grasp the left rim; with the left hand that is the natural, mirrored motion.
+DEMO_HAND = "right"     # "right" or "left"
