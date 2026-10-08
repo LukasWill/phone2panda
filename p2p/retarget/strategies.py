@@ -45,6 +45,19 @@ def _yaw_from_closing_dir(d_table: np.ndarray) -> float:
     return grasp_yaw_for_radial(d[:2])
 
 
+def smooth_path(P: np.ndarray, win: int = 7) -> np.ndarray:
+    """Centred running median over `win` frames, ignoring missing frames. The pinch height comes from
+    LiDAR and jumps by a few cm from frame to frame; the median removes those spikes, not the motion."""
+    out = P.copy()
+    h = win // 2
+    for k in range(len(P)):
+        seg = P[max(0, k - h):k + h + 1]
+        seg = seg[np.isfinite(seg[:, 0])]
+        if np.isfinite(P[k, 0]) and len(seg):
+            out[k] = np.median(seg, 0)
+    return out
+
+
 def _keyframes(demo: dict, k0: int, k1: int, dt: float = 0.12) -> list[int]:
     """Indices between k0 and k1 (inclusive) roughly every dt seconds, only where the hand was seen."""
     t, ok = demo["t"], demo["hand_ok"]
@@ -66,8 +79,12 @@ def _grasp_and_place_tail(grasp, place, yaw, lift_points, release_points) -> lis
            Waypoint(grasp, yaw, GRIPPER_CLOSE, tol=0.01, hold=12, name="close")]
     wps += _path_waypoints(lift_points, yaw, GRIPPER_CLOSE, name="carry")
     wps += [Waypoint(place, yaw, GRIPPER_CLOSE, tol=0.008, timeout=60, name="lower"),
-            Waypoint(place, yaw, GRIPPER_OPEN, tol=0.01, hold=8, name="release")]
-    wps += _path_waypoints(release_points, yaw, GRIPPER_OPEN, tol=0.03, name="retreat")
+            Waypoint(place, yaw, GRIPPER_OPEN, tol=0.01, hold=8, name="release"),
+            # Your fingers open wide and leave sideways; the Panda's fingers open only ~4 cm each side,
+            # so moving sideways right after release drags the rim. Clear the rim vertically first.
+            Waypoint(place + np.array([0, 0, 0.06]), yaw, GRIPPER_OPEN, tol=0.015, name="clear")]
+    wps += _path_waypoints([np.maximum(p, place + [-np.inf, -np.inf, 0.06]) for p in release_points],
+                           yaw, GRIPPER_OPEN, tol=0.03, name="retreat")
     return wps
 
 
@@ -83,12 +100,14 @@ def plan_intent(demo: dict, s: Scene) -> list[Waypoint]:
 
 
 def plan_object_relative(demo: dict, s: Scene) -> list[Waypoint]:
-    P, ev = demo["pinch"], demo["events"]
+    P, ev = smooth_path(demo["pinch"]), demo["events"]
     _, k_grasp, k_lift, k_down, k_release, k_end = ev
     b_h, b_s = demo["bowl_start"], s.bowl_pos
     rim_h, rim_s = human_bowl_rim_top(demo), s.bowl_pos[2] + BOWL_HEIGHT
-    yaw = _yaw_from_closing_dir(demo["closing_dir"][k_grasp]) if np.isfinite(demo["closing_dir"][k_grasp, 0]) \
-        else grasp_yaw_for_radial(to_sim(demo["grasp_point"] - b_h)[:2])
+    # Gripper yaw: fingers must straddle the wall, i.e. close RADIALLY at the grasp point. Your thumb-index
+    # axis (from LiDAR fingertips, which are noisy and partly hidden) is not used for this: a non-radial
+    # Panda grasp lets the bowl twist in the fingers and land off the plate.
+    yaw = grasp_yaw_for_radial(to_sim(demo["grasp_point"] - b_h)[:2])
 
     def in_bowl_frame(p):        # human point -> sim point, anchored on the bowl (heights from the rim)
         d = to_sim(p - b_h)
@@ -112,18 +131,26 @@ def plan_object_relative(demo: dict, s: Scene) -> list[Waypoint]:
           [Waypoint(approach[0] + np.array([0, 0, 0.05]), yaw, GRIPPER_OPEN, tol=0.02, name="pre-approach")]
     wps += _path_waypoints(approach, yaw, GRIPPER_OPEN, name="approach")
 
-    # carry: endpoints re-anchored on the bowl (start) and the plate (end); your path's deviation from
-    # its own straight line (mainly the lift) is added back on top
+    # carry: endpoints re-anchored on the bowl (start) and the plate (end); the path's deviation from its
+    # own straight line (mainly the lift) is added back on top. The carry follows the BOWL track, not the
+    # pinch: a held bowl moves rigidly with the fingers, and its tag gives a far cleaner path than LiDAR
+    # depth at the fingertips (which jumps by several cm from frame to frame).
     place_off = PLATE_SCALE * to_sim(np.r_[demo["bowl_end"][:2] - demo["plate_center"][:2], 0.0])
     held = grasp - b_s
     place = s.plate_pos + np.array([place_off[0], place_off[1], PLATE_HEIGHT + 0.01]) + held
-    kc = [k for k in _keyframes(demo, k_grasp, k_down) if k not in (k_grasp, k_down)]
-    p0, p1 = P[k_grasp], P[k_down] if np.isfinite(P[k_down, 0]) else P[kc[-1]] if kc else P[k_grasp]
+    B = smooth_path(demo["bowl"], win=5)
+    kc = [k for k in range(k_grasp + 1, k_down) if np.isfinite(B[k, 0])]
+    kc = kc[::max(1, len(kc) // 8)]                       # ~8 carry waypoints
+    b0 = B[k_grasp] if np.isfinite(B[k_grasp, 0]) else b_h
+    b1 = B[k_down] if np.isfinite(B[k_down, 0]) else demo["bowl_end"]
+    t0, t1 = demo["t"][k_grasp], demo["t"][k_down]
     carry = []
     for k in kc:
-        u = (demo["t"][k] - demo["t"][k_grasp]) / max(demo["t"][k_down] - demo["t"][k_grasp], 1e-6)
-        shape = to_sim(P[k] - (p0 + u * (p1 - p0)))
-        carry.append(grasp + u * (place - grasp) + shape)
+        u = (demo["t"][k] - t0) / max(t1 - t0, 1e-6)
+        shape = to_sim(B[k] - (b0 + u * (b1 - b0)))
+        p = grasp + u * (place - grasp) + shape
+        p[2] = max(p[2], place[2] + 0.02)                 # never drag the bowl across the plate rim
+        carry.append(p)
     # release + retreat: relative to where you let go
     kr = [k for k in _keyframes(demo, k_release, min(k_end, k_release + int(1.0 / np.median(np.diff(demo["t"])))))
           if k != k_release]
@@ -142,7 +169,7 @@ def absolute_alignment(demos: list[dict], sim_bowl_mean: np.ndarray) -> np.ndarr
 
 
 def plan_absolute(demo: dict, s: Scene, offset: np.ndarray) -> list[Waypoint]:
-    P, ev = demo["pinch"], demo["events"]
+    P, ev = smooth_path(demo["pinch"]), demo["events"]
     _, k_grasp, k_lift, k_down, k_release, k_end = ev
     m = lambda p: to_sim(p) + offset + np.array([0, 0, PINCH_TO_GRIP_Z])
     yaw = _yaw_from_closing_dir(demo["closing_dir"][k_grasp]) if np.isfinite(demo["closing_dir"][k_grasp, 0]) \

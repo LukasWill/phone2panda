@@ -92,8 +92,8 @@ def check(folder: Path) -> bool:
     for i in last:
         tg, T = per_frame[i]
         b = next((t for t in tg.values() if t.role == "bowl"), None)
-        if b is not None:
-            p = transform(T if T is not None else T_ref, b.center_cam)[0]
+        if b is not None and T is not None:      # needs this frame's own camera pose (the phone moves)
+            p = transform(T, b.center_cam)[0]
             if np.linalg.norm(p[:2] - bowl0[:2]) > 0.05:      # it has moved away from its start
                 ends.append(p)
     if len(ends) < 3:

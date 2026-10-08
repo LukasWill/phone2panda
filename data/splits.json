@@ -1,0 +1,9 @@
+{
+  "main": ["17c2b05951_lefthand", "30c08a055f_lefthand", "39a6539bbc_lefthand", "634b81c516_lefthand",
+           "81c1cf2d63_lefthand", "92e0b86bc6_lefthand", "9a63cb1538_lefthand", "a4558c8abd_lefthand",
+           "e53631acd6_lefthand", "f9115215f9_lefthand", "65ee6ec786", "c521c4e934", "c5f525e833"],
+  "holdout": ["39a6539bbc_lefthand", "81c1cf2d63_lefthand", "a4558c8abd_lefthand"],
+  "holdout_rule": "the three most recently recorded demos of the main set (by file time), fixed before any training",
+  "natural_grasp": ["c7e4e24668", "fd35966f27"],
+  "excluded_no_grasp_measured": ["086d24e130_lefthand", "78e4e0da3a", "79392c0ba0", "8324660451", "8e0c7b76ff_lefthand", "a1e321c7a1"]
+}

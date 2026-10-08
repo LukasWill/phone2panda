@@ -103,14 +103,19 @@ def main():
     ap.add_argument("--per-demo", type=int, default=40)
     ap.add_argument("--strategy", default="object_relative")
     ap.add_argument("--workers", type=int, default=2)
-    ap.add_argument("--holdout", default="demo_21,demo_22,demo_23,demo_24,demo_25")
+    ap.add_argument("--holdout", default=None, help="comma-separated; default: 'holdout' in data/splits.json")
     ap.add_argument("--demos", default="", help="only these demo names (comma-separated)")
     ap.add_argument("--grasp-sigma", type=float, default=0.01, help="m along the rim")
     ap.add_argument("--place-sigma", type=float, default=0.015, help="m")
     ap.add_argument("--obj-shift", type=float, default=0.03, help="max extra bowl/plate shift, m")
     ap.add_argument("--image-size", type=int, default=128)
     a = ap.parse_args()
-    hold = set(filter(None, a.holdout.split(",")))
+    if a.holdout is None:
+        sp = Path(__file__).resolve().parents[2] / "data" / "splits.json"
+        hold = set(json.loads(sp.read_text())["holdout"]) if sp.exists() else set()
+    else:
+        hold = set(filter(None, a.holdout.split(",")))
+    print("held out (never used for generation):", sorted(hold))
     only = set(filter(None, a.demos.split(",")))
     demos = [load(p) for p in sorted(Path(a.processed_dir).glob("*.npz"))]
     demos = [d for d in demos if d["name"] not in hold and (not only or d["name"] in only)]
