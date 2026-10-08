@@ -1,9 +1,54 @@
 {
-  "main": ["17c2b05951_lefthand", "30c08a055f_lefthand", "39a6539bbc_lefthand", "634b81c516_lefthand",
-           "81c1cf2d63_lefthand", "92e0b86bc6_lefthand", "9a63cb1538_lefthand", "a4558c8abd_lefthand",
-           "e53631acd6_lefthand", "f9115215f9_lefthand", "65ee6ec786", "c521c4e934", "c5f525e833"],
-  "holdout": ["39a6539bbc_lefthand", "81c1cf2d63_lefthand", "a4558c8abd_lefthand"],
-  "holdout_rule": "the three most recently recorded demos of the main set (by file time), fixed before any training",
-  "natural_grasp": ["c7e4e24668", "fd35966f27"],
-  "excluded_no_grasp_measured": ["086d24e130_lefthand", "78e4e0da3a", "79392c0ba0", "8324660451", "8e0c7b76ff_lefthand", "a1e321c7a1"]
+ "main": [
+  "17c2b05951_lefthand",
+  "30c08a055f_lefthand",
+  "39a6539bbc_lefthand",
+  "634b81c516_lefthand",
+  "81c1cf2d63_lefthand",
+  "92e0b86bc6_lefthand",
+  "9a63cb1538_lefthand",
+  "a4558c8abd_lefthand",
+  "e53631acd6_lefthand",
+  "f9115215f9_lefthand",
+  "65ee6ec786",
+  "c521c4e934",
+  "c5f525e833"
+ ],
+ "training": [
+  "17c2b05951_lefthand",
+  "30c08a055f_lefthand",
+  "634b81c516_lefthand",
+  "92e0b86bc6_lefthand",
+  "9a63cb1538_lefthand",
+  "e53631acd6_lefthand",
+  "f9115215f9_lefthand",
+  "65ee6ec786",
+  "c521c4e934",
+  "c5f525e833"
+ ],
+ "holdout": [
+  "39a6539bbc_lefthand",
+  "81c1cf2d63_lefthand",
+  "a4558c8abd_lefthand"
+ ],
+ "holdout_rule": "the three most recently recorded demos of the main set (by file time), fixed before any training",
+ "main_note": "all pass the recording checks, have a measured grasp point, and grasp the left rim (7-9 o'clock)",
+ "natural_grasp": [
+  "5783997456_test1",
+  "0c3c9c0735_test2",
+  "dcbcbf700f",
+  "bd9e8d821d",
+  "c7e4e24668",
+  "fd35966f27"
+ ],
+ "natural_grasp_note": "grasped the near side (test1, test2: ~6 o'clock) or the right side (~3-5.5 o'clock) of the rim: natural for a right hand, but the robot's infeasible side in this LIBERO scene",
+ "excluded_no_grasp_measured": [
+  "086d24e130_lefthand",
+  "78e4e0da3a",
+  "79392c0ba0",
+  "8324660451",
+  "8e0c7b76ff_lefthand",
+  "a1e321c7a1"
+ ],
+ "excluded_note": "hand not tracked at the grasp moment, so no grasp point can be measured"
 }

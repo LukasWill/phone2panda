@@ -8,3 +8,4 @@ checkpoints/
 !assets/*.mp4
 check_*.jpg
 .pytest_cache/
+results/*.log
