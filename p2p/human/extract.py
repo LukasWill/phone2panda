@@ -96,6 +96,12 @@ def first_run(mask: np.ndarray, n: int = 3) -> int | None:
     return None
 
 
+def demo_hand(folder: Path) -> str:
+    """Which hand demonstrated: recordings made with the left hand carry a 'lefthand' suffix in their
+    folder name; everything else uses DEMO_HAND from p2p/config.py."""
+    return "left" if "lefthand" in Path(folder).name.lower() else DEMO_HAND
+
+
 def upright_rotation(rec: StrayRecording, max_frames: int = 90) -> int:
     """How many 90-deg CCW turns make 'away from you' (table +y) point up in the image."""
     for i, bgr in rec.rgb_frames(step=10):
@@ -135,6 +141,7 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
     ts = odo["timestamp"] - odo["timestamp"][0] if odo is not None else np.arange(rec.n_rgb) / rec.fps
 
     rot_k = upright_rotation(rec)
+    hand = demo_hand(folder)
     frames, tag_T, bowl_cam, plate_cam, hands, prev = [], {}, {}, {}, {}, None
     for i, bgr in rec.rgb_frames(step=step):
         frames.append(i)
@@ -149,7 +156,7 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
                 bowl_cam[i] = t.center_cam
             elif t.role == "plate":
                 plate_cam[i] = t.center_cam
-        h = pick_hand(detector(bgr, int(1000 * ts[min(i, len(ts) - 1)]), rot_k), prev, DEMO_HAND)
+        h = pick_hand(detector(bgr, int(1000 * ts[min(i, len(ts) - 1)]), rot_k), prev, hand)
         prev = None if h is None else h.uv[WRIST]
         if h is not None:
             h3 = lift_hand(h, lambda uv, i=i: rec.depth_at_rgb_pixel(i, uv), K)
@@ -261,6 +268,7 @@ def extract(folder: Path, detector: HandDetector | None = None, step: int = 2) -
         "human_success": human_ok,
         "bowl_end_seen": bowl_end_seen,
         "upright_rotation_k": rot_k,
+        "hand": hand,
     }
     return dict(name=folder.name, t=t, frames=np.array(frames), T_table_cam=np.array([T_tc[i] for i in frames]),
                 pinch=pinch, pinch_uv=pinch_uv, palm=palm, closing_dir=closing_dir, aperture=aperture,
@@ -327,25 +335,31 @@ def qa_plot(d: dict, path: Path):
     plt.close(fig)
 
 
-def main(raw_dir: str, out_dir: str):
+def _extract_one(args):
+    folder, out = args
+    try:
+        d = extract(Path(folder))
+        save(d, Path(out))
+        return Path(folder).name, json.loads(d["quality"])
+    except Exception as e:  # one bad recording must not stop the batch
+        return Path(folder).name, {"error": f"{type(e).__name__}: {e}"}
+
+
+def main(raw_dir: str, out_dir: str, workers: int = 3):
+    import multiprocessing as mp
+
     raw, out = Path(raw_dir), Path(out_dir)
     folders = [raw] if (raw / "rgb.mp4").exists() else sorted(p for p in raw.iterdir() if (p / "rgb.mp4").exists())
-    det = HandDetector()
+    out.mkdir(parents=True, exist_ok=True)
     summary = {}
-    for f in folders:
-        try:
-            d = extract(f, det)
-            save(d, out)
-            summary[f.name] = json.loads(d["quality"])
-            print(f.name, summary[f.name])
-        except Exception as e:  # keep going: one bad recording should not stop the batch
-            summary[f.name] = {"error": f"{type(e).__name__}: {e}"}
-            print(f.name, "FAILED:", e)
-    det.close()
-    (out / "summary.json").write_text(json.dumps(summary, indent=1))
+    with mp.get_context("spawn").Pool(workers) as pool:
+        for name, q in pool.imap_unordered(_extract_one, [(str(f), str(out)) for f in folders]):
+            summary[name] = q
+            print(name, q, flush=True)
+    (out / "summary.json").write_text(json.dumps(dict(sorted(summary.items())), indent=1))
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         sys.exit(__doc__)
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], *(int(a) for a in sys.argv[3:]))
