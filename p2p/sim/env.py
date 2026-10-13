@@ -59,6 +59,53 @@ def ensure_libero_config() -> None:
     )
 
 
+NVIDIA_EGL_ICD = Path("/usr/share/glvnd/egl_vendor.d/10_nvidia.json")
+
+
+def ensure_nvidia_egl() -> bool:
+    """Make MUJOCO_GL=egl render on the NVIDIA GPU, not silently on the CPU.
+
+    EGL picks its driver from vendor files in /usr/share/glvnd/egl_vendor.d/. Colab's NVIDIA driver is
+    not installed through the package manager, so the NVIDIA file is missing and EGL falls back to
+    Mesa's software renderer: same images, ~10x slower, no error. MuJoCo's own Colab tutorial writes
+    this file for the same reason. Call before anything creates an OpenGL context.
+    Returns True if the NVIDIA file is in place."""
+    if NVIDIA_EGL_ICD.exists():
+        return True
+    if not Path("/proc/driver/nvidia/version").exists():      # no NVIDIA GPU here: nothing to do
+        return False
+    try:
+        NVIDIA_EGL_ICD.parent.mkdir(parents=True, exist_ok=True)
+        NVIDIA_EGL_ICD.write_text('{"file_format_version": "1.0.0", "ICD": {"library_path": "libEGL_nvidia.so.0"}}\n')
+        return True
+    except OSError:                                           # not root: leave it, render_speed() will tell
+        return False
+
+
+def render_speed(n: int = 40) -> dict:
+    """Steps/s of the rendering env (both cameras, as in data generation) and the OpenGL renderer name.
+    On a T4 with GPU rendering this is physics-bound (tens of steps/s); a software renderer gives ~5."""
+    import time
+
+    env = TaskEnv(render=True, camera_size=256, hard_reset=False)
+    env.reset(seed=0)
+    t0 = time.time()
+    for _ in range(n):
+        env.step(NOOP)
+        env.frame(size=128)
+    rate = n / (time.time() - t0)
+    try:
+        from OpenGL import GL
+
+        renderer = GL.glGetString(GL.GL_RENDERER).decode()
+    except Exception:  # no current context in this thread: the speed alone is the evidence
+        renderer = "unknown"
+    env.close()
+    software = any(k in renderer.lower() for k in ("llvmpipe", "softpipe", "swrast"))
+    gpu = (renderer != "unknown" and not software) or (renderer == "unknown" and rate > 20)
+    return {"steps_per_s": round(rate, 1), "renderer": renderer, "gpu_rendering": gpu}
+
+
 def quat2axisangle(q: np.ndarray) -> np.ndarray:
     """(x, y, z, w) quaternion -> axis * angle. Same formula as LeRobot's LiberoProcessorStep,
     so our state vectors are bit-for-bit comparable with lerobot/libero."""
@@ -125,6 +172,8 @@ class TaskEnv:
     def __init__(self, render: bool = True, camera_size: int = 256, hard_reset: bool = True):
         ensure_libero_config()
         os.environ.setdefault("MUJOCO_GL", "egl")
+        if render:
+            ensure_nvidia_egl()
         from libero.libero import benchmark, get_libero_path
         from libero.libero.envs import OffScreenRenderEnv
 

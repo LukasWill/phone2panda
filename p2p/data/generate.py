@@ -20,7 +20,9 @@ from __future__ import annotations
 import argparse
 import json
 import multiprocessing as mp
+import os
 import time
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -74,23 +76,44 @@ def _run(job):
         _, success, done = _ENV.step(a)
     meta = {"demo": demo["name"], "strategy": strategy, "seed": seed, "success": bool(success),
             "steps": _ENV.t, "last_waypoint": follower.current, **pert}
-    np.savez_compressed(Path(out_dir) / f"ep_{seed:06d}.npz", **{k: np.stack(v) for k, v in buf.items()},
-                        success=success, meta=json.dumps(meta))
+    # write to a temporary name, then rename: a disconnect mid-write never leaves a half file that looks done
+    final = Path(out_dir) / f"ep_{seed:06d}.npz"
+    tmp = final.with_name(final.name + ".tmp")
+    with open(tmp, "wb") as f:              # a file object, so numpy does not append another ".npz"
+        np.savez_compressed(f, **{k: np.stack(v) for k, v in buf.items()}, success=success, meta=json.dumps(meta))
+    os.replace(tmp, final)
     return meta
+
+
+def _complete(path: Path) -> bool:
+    """A finished .npz is a zip whose directory (at the END of the file) can be read: cheap, even on Drive."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            return "meta.npy" in z.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
 
 
 def generate(demos: list[dict], out_dir: Path, per_demo: int, strategy: str, workers: int, cfg: dict,
              seed0: int = 1000) -> list[dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
     jobs = [(d, strategy, seed0 + 1000 * j + k, cfg, str(out_dir)) for j, d in enumerate(demos) for k in range(per_demo)]
-    jobs = [jb for jb in jobs if not (out_dir / f"ep_{jb[2]:06d}.npz").exists()]   # resumable
+    for bad in [f for f in out_dir.glob("ep_*.npz") if not _complete(f)]:            # e.g. lost in a disconnect
+        print("removing incomplete", bad.name, flush=True)
+        bad.unlink()
+    jobs = [jb for jb in jobs if not (out_dir / f"ep_{jb[2]:06d}.npz").exists()]   # resumable: skip finished ones
+    done_before = per_demo * len(demos) - len(jobs)
+    if done_before:
+        print(f"resuming: {done_before} episodes already in {out_dir}, {len(jobs)} to go", flush=True)
+    t0 = time.time()
     with mp.get_context("spawn").Pool(workers, initializer=_init_worker) as pool:
         metas = []
         for m in pool.imap_unordered(_run, jobs):
             metas.append(m)
             if len(metas) % 20 == 0:
-                print(f"{len(metas)}/{len(jobs)} episodes, success so far {np.mean([x['success'] for x in metas]):.2f}",
-                      flush=True)
+                el = time.time() - t0
+                print(f"{len(metas)}/{len(jobs)} episodes, success so far {np.mean([x['success'] for x in metas]):.2f}, "
+                      f"{el / 60:.0f} min, ~{el / len(metas) * (len(jobs) - len(metas)) / 60:.0f} min to go", flush=True)
     return metas
 
 
