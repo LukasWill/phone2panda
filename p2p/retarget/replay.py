@@ -61,6 +61,9 @@ def replay(demos: list[dict], strategies=STRATEGIES, inits=range(50), workers: i
     jobs = [(d, s, i, offset) for d in demos for s in strategies for i in inits]
     # 'spawn', not the default 'fork': forking a process that already initialised MuJoCo / numba
     # threads can deadlock the children. Spawned workers start clean and build their own env.
+    from p2p.sim.env import prefetch_assets
+
+    prefetch_assets()                       # download LIBERO's assets once, before the workers start
     with mp.get_context("spawn").Pool(workers, initializer=_init_worker) as pool:
         return list(pool.imap_unordered(_run, jobs, chunksize=2))
 

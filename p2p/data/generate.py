@@ -106,6 +106,9 @@ def generate(demos: list[dict], out_dir: Path, per_demo: int, strategy: str, wor
     if done_before:
         print(f"resuming: {done_before} episodes already in {out_dir}, {len(jobs)} to go", flush=True)
     t0 = time.time()
+    from p2p.sim.env import prefetch_assets
+
+    prefetch_assets()                       # download LIBERO's assets once, before the workers start
     with mp.get_context("spawn").Pool(workers, initializer=_init_worker) as pool:
         metas = []
         for m in pool.imap_unordered(_run, jobs):
@@ -140,7 +143,7 @@ def main():
         hold = set(json.loads(sp.read_text())["holdout"]) if sp.exists() else set()
     else:
         hold = set(filter(None, a.holdout.split(",")))
-    print("held out (never used for generation):", sorted(hold))
+    print("held out (never used for generation):", sorted(hold), flush=True)
     only = set(filter(None, a.demos.split(",")))
     all_demos = [load(p) for p in sorted(Path(a.processed_dir).glob("*.npz"))]
     demos = [d for d in all_demos if d["name"] not in hold and (not only or d["name"] in only)]

@@ -82,6 +82,13 @@ def ensure_nvidia_egl() -> bool:
         return False
 
 
+def prefetch_assets() -> None:
+    """Build one env in THIS process before starting worker processes. On a fresh machine LIBERO
+    downloads its ~300 MB of assets on first use; parallel workers would each start that download into
+    the same folder at the same time (seen on Colab: two simultaneous downloads)."""
+    TaskEnv(render=False).close()
+
+
 def render_speed(n: int = 40) -> dict:
     """Steps/s of the rendering env (both cameras, as in data generation) and the OpenGL renderer name.
     On a T4 with GPU rendering this is physics-bound (tens of steps/s); a software renderer gives ~5."""
