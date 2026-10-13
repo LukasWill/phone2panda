@@ -9,3 +9,4 @@ checkpoints/
 check_*.jpg
 .pytest_cache/
 results/*.log
+results/table1_per_demo/

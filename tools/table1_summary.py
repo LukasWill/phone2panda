@@ -9,6 +9,7 @@ whose grasp point is ambiguous). Output: <out>.csv (all rollouts) and <out>.md (
 from __future__ import annotations
 
 import csv
+import json
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -18,6 +19,19 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from p2p.retarget.strategies import STRATEGIES  # noqa: E402
 from p2p.stats import fmt_rate  # noqa: E402
+
+
+def grasp_side_robot_deg(demo: str) -> float:
+    """Where on the rim the human grasped, as an angle around the bowl in the ROBOT's frame
+    (0 = +x, away from the robot base; 90 = +y, the robot's left). Table frame -> sim frame is a
+    -90 deg rotation (x_sim = y_table, y_sim = -x_table). The robot can lower onto 0-150 deg and 330 deg."""
+    root = Path(__file__).resolve().parents[1] / "data"
+    for sub in ("processed", "processed_natural"):
+        f = root / sub / f"{demo}.npz"
+        if f.exists():
+            q = json.loads(str(np.load(f)["quality"]))
+            return (q["rim_angle_deg"] - 90) % 360
+    return float("nan")
 
 
 def main(in_dir: Path, out: Path):
@@ -52,12 +66,12 @@ def main(in_dir: Path, out: Path):
             fail = f"{fails[0][0]} ({fails[0][1]})" if fails else "-"
             lines.append(f"| {g} ({len(per_demo)}) | {s} | {fmt_rate(sum(x['success'] for x in r), len(r))} | "
                          f"{good}/{len(per_demo)} | {fail} |")
-    lines += ["", "## Per demo (successes out of %d)" % n_init, "", "| demo | group | " + " | ".join(STRATEGIES) + " |",
-              "|---|---|" + "---|" * len(STRATEGIES)]
+    lines += ["", "## Per demo (successes out of %d)" % n_init, "", "| demo | group | grasp side, robot frame (deg) | " + " | ".join(STRATEGIES) + " |",
+              "|---|---|---|" + "---|" * len(STRATEGIES)]
     for g in groups:
         for d in sorted({r["demo"] for r in rows if r["group"] == g}):
             cnt = [sum(x["success"] for x in rows if x["demo"] == d and x["strategy"] == s) for s in STRATEGIES]
-            lines.append(f"| {d} | {g} | " + " | ".join(map(str, cnt)) + " |")
+            lines.append(f"| {d} | {g} | {grasp_side_robot_deg(d):.0f} | " + " | ".join(map(str, cnt)) + " |")
     out.with_suffix(".md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 
