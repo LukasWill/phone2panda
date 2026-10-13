@@ -109,6 +109,8 @@ def main():
     ap.add_argument("--place-sigma", type=float, default=0.015, help="m")
     ap.add_argument("--obj-shift", type=float, default=0.03, help="max extra bowl/plate shift, m")
     ap.add_argument("--image-size", type=int, default=128)
+    ap.add_argument("--seed0", type=int, default=1000,
+                    help="episode seeds are seed0 + 1000*demo_index + k; use a distinct range per dataset")
     a = ap.parse_args()
     if a.holdout is None:
         sp = Path(__file__).resolve().parents[2] / "data" / "splits.json"
@@ -117,11 +119,17 @@ def main():
         hold = set(filter(None, a.holdout.split(",")))
     print("held out (never used for generation):", sorted(hold))
     only = set(filter(None, a.demos.split(",")))
-    demos = [load(p) for p in sorted(Path(a.processed_dir).glob("*.npz"))]
-    demos = [d for d in demos if d["name"] not in hold and (not only or d["name"] in only)]
+    all_demos = [load(p) for p in sorted(Path(a.processed_dir).glob("*.npz"))]
+    demos = [d for d in all_demos if d["name"] not in hold and (not only or d["name"] in only)]
     cfg = dict(grasp_sigma=a.grasp_sigma, place_sigma=a.place_sigma, obj_shift=a.obj_shift, image_size=a.image_size)
+    if a.strategy == "absolute":
+        # the one global human->sim alignment, fitted on ALL demos of the folder exactly as in Table 1
+        from p2p.retarget.replay import sim_bowl_mean
+        from p2p.retarget.strategies import absolute_alignment
+
+        cfg["abs_offset"] = absolute_alignment(all_demos, sim_bowl_mean())
     t0 = time.time()
-    metas = generate(demos, Path(a.out_dir), a.per_demo, a.strategy, a.workers, cfg)
+    metas = generate(demos, Path(a.out_dir), a.per_demo, a.strategy, a.workers, cfg, seed0=a.seed0)
     print(f"done: {len(metas)} episodes, {sum(m['success'] for m in metas)} successes, {time.time() - t0:.0f}s")
     with open(Path(a.out_dir) / "generation_log.jsonl", "a") as f:
         for m in metas:
