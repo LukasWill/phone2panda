@@ -99,14 +99,27 @@ def official_episodes(size: int = 128, limit: int | None = None) -> Iterator[dic
     from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
 
     meta = LeRobotDatasetMetadata("lerobot/libero")
-    norm = lambda t: " ".join(t.lower().replace(".", " ").split())        # noqa: E731  (case, spaces, final period)
-    eps = [int(r["episode_index"]) for r in meta.episodes
-           if any(norm(t) == norm(TASK_LANGUAGE) for t in (r.get("tasks") or []))]
-    if not eps:
-        # an empty selection would make LeRobot download nothing and fail with "no parquet file": say why instead
-        bowl = sorted({t for r in meta.episodes for t in (r.get("tasks") or []) if "bowl" in t.lower()})
-        raise RuntimeError(f"no episodes of {TASK_LANGUAGE!r} in lerobot/libero. Tasks mentioning 'bowl': {bowl}")
-    print(f"official: {len(eps)} episodes of {TASK_LANGUAGE!r} in lerobot/libero", flush=True)
+    # Which episodes are ours? The task texts live in meta/tasks.parquet (index = text, column task_index);
+    # the episode -> task link is the task_index column of the frame table (data/*.parquet: numbers only,
+    # a few tens of MB; the images are in separate video files). The per-episode "tasks" field is not
+    # filled in this dataset, so it cannot be used.
+    norm = lambda t: " ".join(str(t).lower().replace(".", " ").split())   # noqa: E731  (case, spaces, final period)
+    hits = [t for t in meta.tasks.index if norm(t) == norm(TASK_LANGUAGE)]
+    if not hits:
+        bowl = sorted(t for t in meta.tasks.index if "bowl" in str(t).lower())
+        raise RuntimeError(f"task {TASK_LANGUAGE!r} not in lerobot/libero ({len(meta.tasks)} tasks). "
+                           f"Tasks mentioning 'bowl': {bowl or list(meta.tasks.index)[:10]}")
+    task_index = int(meta.tasks.loc[hits[0]].task_index)
+    import glob
+
+    import pandas as pd
+    from huggingface_hub import snapshot_download
+
+    data_root = snapshot_download("lerobot/libero", repo_type="dataset", allow_patterns=["data/*"])
+    frames = pd.concat(pd.read_parquet(f, columns=["episode_index", "task_index"])
+                       for f in sorted(glob.glob(f"{data_root}/data/**/*.parquet", recursive=True)))
+    eps = sorted(int(e) for e in frames.loc[frames.task_index == task_index, "episode_index"].unique())
+    print(f"official: task_index {task_index} = {hits[0]!r}: {len(eps)} episodes in lerobot/libero", flush=True)
     eps = eps[:limit] if limit else eps
     ds = LeRobotDataset("lerobot/libero", episodes=eps)
     by_ep: dict[int, dict[str, list]] = {}
