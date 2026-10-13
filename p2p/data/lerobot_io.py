@@ -11,7 +11,9 @@ state definition and fps, and the only difference between "ours" and "official" 
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
+import shutil
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -37,9 +39,15 @@ def features(size: int = 128) -> dict:
 def write_dataset(episodes: Iterable[dict], repo_id: str, root: Path, size: int = 128) -> int:
     from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
+    it = iter(episodes)
+    first = next(it, None)            # fail BEFORE creating the folder, so an error never leaves an empty dataset
+    if first is None:
+        raise RuntimeError(f"no episodes to write to {root}")
+    if Path(root).exists():           # rebuilding: start clean (LeRobotDataset.create refuses an existing folder)
+        shutil.rmtree(root)
     ds = LeRobotDataset.create(repo_id, FPS, features(size), root=root, robot_type="panda", use_videos=True)
     n = 0
-    for ep in episodes:
+    for ep in itertools.chain([first], it):
         for t in range(len(ep["action"])):
             ds.add_frame({"observation.images.image": ep["image"][t], "observation.images.image2": ep["image2"][t],
                           "observation.state": ep["state"][t].astype(np.float32),
@@ -91,7 +99,14 @@ def official_episodes(size: int = 128, limit: int | None = None) -> Iterator[dic
     from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
 
     meta = LeRobotDatasetMetadata("lerobot/libero")
-    eps = [int(r["episode_index"]) for r in meta.episodes if TASK_LANGUAGE in (r.get("tasks") or [])]
+    norm = lambda t: " ".join(t.lower().replace(".", " ").split())        # noqa: E731  (case, spaces, final period)
+    eps = [int(r["episode_index"]) for r in meta.episodes
+           if any(norm(t) == norm(TASK_LANGUAGE) for t in (r.get("tasks") or []))]
+    if not eps:
+        # an empty selection would make LeRobot download nothing and fail with "no parquet file": say why instead
+        bowl = sorted({t for r in meta.episodes for t in (r.get("tasks") or []) if "bowl" in t.lower()})
+        raise RuntimeError(f"no episodes of {TASK_LANGUAGE!r} in lerobot/libero. Tasks mentioning 'bowl': {bowl}")
+    print(f"official: {len(eps)} episodes of {TASK_LANGUAGE!r} in lerobot/libero", flush=True)
     eps = eps[:limit] if limit else eps
     ds = LeRobotDataset("lerobot/libero", episodes=eps)
     by_ep: dict[int, dict[str, list]] = {}
