@@ -1,0 +1,4 @@
+source,strategy,n,true_success,wm_predicted_full,agreement_full,wm_predicted_20,agreement_20
+test_absolute,absolute,60,0% [0-6] (n=60),0% [0-6] (n=60),1.0,12% [6-22] (n=60),0.88
+test_intent,intent,60,97% [89-99] (n=60),80% [68-88] (n=60),0.8,77% [65-86] (n=60),0.77
+test_object_relative,object_relative,60,57% [44-68] (n=60),32% [21-44] (n=60),0.72,58% [46-70] (n=60),0.78

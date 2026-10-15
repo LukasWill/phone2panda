@@ -225,6 +225,21 @@ def evaluate(ckpt: Path, cache_path: Path, out_dir: Path, H: int = 40):
     with open(out_dir / "wm_strategies.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
     res["strategies"] = rows
+    # Stricter test: AUROC WITHIN one strategy. Across strategies, failures are easy to spot (an absolute
+    # replay never even reaches the bowl); within object-relative, successes and failures share the same
+    # kind of motion and differ only in how the grasp and the placement turned out.
+    res["auroc_within_strategy"] = {}
+    for strat in sorted(set(c["strategy"][test])):
+        m = c["strategy"][test] == strat
+        if 0 < succ[test][m].sum() < m.sum():
+            res["auroc_within_strategy"][strat] = {k: auroc(-d[m], succ[test][m]) for k, d in dist_test.items()}
+            print(strat, {k: round(v, 3) for k, v in res["auroc_within_strategy"][strat].items()}, flush=True)
+    with open(out_dir / "wm_test_episodes.csv", "w", newline="") as f:      # per-episode scores, for re-analysis
+        w = csv.writer(f)
+        w.writerow(["episode", "source", "strategy", "demo", "seed", "success"] + [f"dist_cm_H{k}" for k in dist_test])
+        for j, e in enumerate(test):
+            w.writerow([int(e), c["source"][e], c["strategy"][e], c["demo"][e], int(c["seed"][e]), int(succ[e])] +
+                       [round(100 * float(d[j]), 2) for d in dist_test.values()])
     for r in rows:
         print(r, flush=True)
 

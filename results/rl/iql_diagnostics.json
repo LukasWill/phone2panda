@@ -1,0 +1,11 @@
+{
+ "n_frames": 108418,
+ "n_episodes": 600,
+ "success_episodes": 438,
+ "auroc_V_first_frame": 0.6611843959636958,
+ "auroc_V_mid_episode": 0.9505186312644456,
+ "mean_weight_success_frames": 1.1455342769622803,
+ "mean_weight_failure_frames": 0.8208730220794678,
+ "weight_p99": 7.317793846130371,
+ "effective_sample_fraction": 0.3587624132633209
+}
