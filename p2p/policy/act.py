@@ -157,14 +157,21 @@ def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: in
     for n, i in enumerate(init_ids):
         env.reset(init_state_id=i)
         policy.reset()
-        frames, done, success = [], False, False
+        bowl_z0 = env.scene().bowl_pos[2]
+        frames, done, success, max_lift = [], False, False, 0.0
         while not done:
             f = env.frame(size=image_size)
             if video_dir and n < n_videos:
                 frames.append(np.hstack([f["observation.images.image"], f["observation.images.image2"]]))
             action = post(policy.select_action(pre(to_batch(f))))
             _, success, done = env.step(action.squeeze(0).float().cpu().numpy())
-        results.append({"init": int(i), "success": bool(success), "steps": env.t})
+            max_lift = max(max_lift, env.scene().bowl_pos[2] - bowl_z0)
+        sc = env.scene()
+        # where the bowl ended, so failures can be sorted like the generated data (tools/failure_modes.py):
+        # never lifted / off the plate / on the plate but > 3 cm from its centre (LIBERO's tolerance)
+        results.append({"init": int(i), "success": bool(success), "steps": env.t,
+                        "bowl_lift_cm": round(100 * float(max_lift), 1),
+                        "bowl_to_plate_cm": round(100 * float(np.linalg.norm(sc.bowl_pos[:2] - sc.plate_pos[:2])), 1)})
         if frames:
             import imageio
 
