@@ -56,8 +56,14 @@ def weighted_act_loss(policy, batch: dict, weights: torch.Tensor | None = None) 
         kld = (-0.5 * (1 + log_sigma_x2 - mu.pow(2) - log_sigma_x2.exp())).sum(-1)
         per_sample = per_sample + policy.config.kl_weight * kld
         logs["kld"] = kld.mean().item()
-    w = torch.ones_like(per_sample) if weights is None else weights
-    return (per_sample * w).sum() / w.sum().clamp_min(1e-6), logs
+    if weights is None:
+        return per_sample.mean(), logs
+    # AWR objective E[w * loss]. The weights are already normalised to mean 1 over the whole dataset
+    # (p2p/rl/iql.py), so a plain batch mean keeps the learning rate comparable to unweighted runs.
+    # (Dividing by the batch's own weight sum instead would re-inflate batches that happen to hold only
+    # low-weight frames, and weaken exactly the contrast the weights are meant to create.)
+    logs["mean_weight"] = weights.mean().item()
+    return (per_sample * weights).mean(), logs
 
 
 def train(dataset_root: str, out_dir: str, steps: int = 20000, batch_size: int = 32, lr: float = 2e-5,
@@ -70,6 +76,9 @@ def train(dataset_root: str, out_dir: str, steps: int = 20000, batch_size: int =
     if weights_file:   # per-frame weights indexed by the dataset's global frame "index"
         w = np.load(weights_file)
         w_lookup = torch.as_tensor(w["weights"], dtype=torch.float32, device=device)
+        if len(w_lookup) != ds.num_frames:
+            raise ValueError(f"{weights_file} has {len(w_lookup)} weights but the dataset has {ds.num_frames} frames: "
+                             "the weights must come from the same generated/ folder that built this dataset")
     loader = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                          drop_last=True, pin_memory=device == "cuda", persistent_workers=num_workers > 0)
     backbone = [p for n, p in policy.named_parameters() if "backbone" in n and p.requires_grad]
@@ -83,8 +92,9 @@ def train(dataset_root: str, out_dir: str, steps: int = 20000, batch_size: int =
     step, t0, hist = 0, time.time(), []
     while step < steps:
         for batch in loader:
+            idx = batch["index"]                     # global frame index, read before the preprocessor touches the batch
             batch = pre(batch)
-            weights = w_lookup[batch["index"].long().to(device)] if w_lookup is not None else None
+            weights = w_lookup[idx.long().to(device)] if w_lookup is not None else None
             with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
                 loss, logs = weighted_act_loss(policy, batch, weights)
             opt.zero_grad(set_to_none=True)
