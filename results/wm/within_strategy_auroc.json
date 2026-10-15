@@ -1,0 +1,6 @@
+{
+ "note": "Success AUROC computed within one retargeting strategy on the held-out demos (keys = steps imagined before the end at 10 Hz; 'full' = imagined from the first frame). intent has only 2 failures in 60, so its AUROC rests on 2 negatives and is very noisy.",
+ "object_relative": {"n": 60, "successes": 34, "auroc": {"0": 0.959, "5": 0.946, "10": 0.885, "20": 0.801, "40": 0.912, "80": 0.889, "full": 0.93}},
+ "intent": {"n": 60, "successes": 58, "auroc": {"0": 0.879, "5": 0.784, "10": 0.828, "20": 0.655, "40": 0.862, "80": 0.767, "full": 0.819}},
+ "all_strategies": {"n": 180, "auroc": {"0": 0.981, "5": 0.953, "10": 0.957, "20": 0.857, "40": 0.957, "80": 0.961, "full": 0.969}}
+}
