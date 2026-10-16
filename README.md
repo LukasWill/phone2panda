@@ -14,7 +14,7 @@ action-conditioned **world model** that predicts the camera view and whether a p
 |---|---|
 | Q1: How should a human demo be retargeted? | Intent-only 100%, object-relative 81%, absolute replay 0% (13 demos x 20 scenes each) |
 | Q2: How good is a policy trained only on my phone demos? | ACT 57% [47-66] (438 sim-verified episodes from 10 demos) vs 97% [92-99] on 49 official teleop demos |
-| Q2b: Does learning from failures help? | Advantage-weighted ACT (IQL critic) 66% [52-78], vs 57% without failures: + 9 points, not significant |
+| Q2b: Does learning from failures help? | All 600 rollouts weighted by an IQL critic: 66% [52-78]; the same data unweighted: 54% [40-67]; successes only: 57% [47-66]. Weighting helps by ~12 points; one seed each, so suggestive, not significant |
 | Q3: Can a world model judge a plan before execution? | Success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy); ranks the 3 strategies correctly |
 
 ![world model: real (left) vs imagined from the first frame (right)](assets/wm_hero_success.mp4)
@@ -105,10 +105,10 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | official teleop (`lerobot/libero`) | 49 | **97%** [92-99] (2 evals, n=100) | 0 | 0 | 0 |
 | ours_50 (count-matched) | 50 | **46%** [33-60] | 13 | 7 | 7 |
 | ours_all | 438 | **57%** [47-66] (2 evals, n=100) | 16 | 4 | 1 |
-| ours_mix + IQL advantage weights | 600 | **66%** [52-78] | TODO | TODO | TODO |
-| ours_mix, unweighted (control) | 600 | TODO | | | |
+| ours_mix + IQL advantage weights | 600 | **66%** [52-78] | - | - | - |
+| ours_mix, unweighted (control) | 600 | **54%** [40-67] | - | - | - |
 
-Failure columns are from one evaluation of 50 episodes each.
+Failure columns are from one evaluation of 50 episodes each (not recorded for the two ours_mix runs).
 
 - **The gap to teleop is in grasping, not placing.** Successful episodes place the bowl as accurately as the
   teleop policy (median 1.9 vs 1.1 cm from the plate centre); most failures never lift the bowl.
@@ -131,7 +131,18 @@ simulator state, the policy only images.
 - Gate, fixed before the run: the critic must tell success from failure halfway through an episode.
   AUROC 0.95 (0.66 from the first frame) -> passed (`results/rl/iql_diagnostics.json`).
 - Weights: success frames 1.15 on average, failure frames 0.82; 36% effective sample size.
-- Result: 66% [52-78] vs 57% [47-66]. Promising, not significant with one seed. TODO: unweighted control.
+- Result, three ways to use the same 600 rollouts:
+
+  | Training data | Success |
+  |---|---|
+  | successes only (filtered imitation, ours_all) | 57% [47-66] (n=100) |
+  | all rollouts, unweighted (control) | 54% [40-67] |
+  | all rollouts, IQL advantage-weighted | **66%** [52-78] |
+
+  Adding the failures without weights does not help (imitating failed grasps should hurt, and the
+  successes still dominate); the critic's weights turn the same data into the best of the three runs.
+  The ordering matches the hypothesis, but the intervals overlap and each configuration is one seed, so this
+  is suggestive, not significant; a few more seeds would settle it.
 
 ## Q3. World model (Part B)
 
