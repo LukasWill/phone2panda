@@ -1,8 +1,5 @@
 # phone2panda
 
-<!-- DRAFT skeleton: tables and numbers are final (from results/); prose is a draft for you to rewrite in your
-own voice. Lines marked TODO(you) need your input. -->
-
 **From iPhone videos of my own hand to a Panda robot in simulation.** I recorded myself putting a bowl on a
 plate (iPhone with LiDAR, Stray Scanner app). The pipeline turns each recording into a metric 3D
 demonstration, retargets it to a Franka Panda in LIBERO (task: LIBERO-Goal *"put the bowl on the plate"*),
@@ -17,8 +14,10 @@ action-conditioned **world model** that predicts the camera view and whether a p
 | Q2b: Does learning from failures help? | All 600 rollouts weighted by an IQL critic: 66% [52-78]; the same data unweighted: 54% [40-67]; successes only: 57% [47-66]. Weighting helps by ~12 points; one seed each, so suggestive, not significant |
 | Q3: Can a world model judge a plan before execution? | Success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy); ranks the 3 strategies correctly |
 
-![world model: real (left) vs imagined from the first frame (right)](assets/wm_hero_success.mp4)
-<!-- TODO(you): GitHub shows mp4 only via drag-and-drop upload into the README editor, or link the file instead. -->
+![world model: real camera (left) vs imagined from the first frame and the actions only (right)](assets/wm_hero_success.gif)
+
+*World model on a held-out demo: left the real camera, right the model's imagination from the first frame
+and the action sequence alone (64 px, 10 Hz). Failure example: [assets/wm_hero_failure.mp4](assets/wm_hero_failure.mp4).*
 
 ## Pipeline
 
@@ -69,8 +68,19 @@ CPU (~2.6 steps/s instead of ~29). `p2p.sim.env.ensure_nvidia_egl()` fixes this 
 - Protocol (kept minimal): tags visible in the first second; grasp the bowl's left rim; hand and bowl visible
   from grasp to release; bowl on the plate visible at the end. The phone is hand-held: the camera track is
   ARKit, anchored to the table tag (camera spread 3-11 mm).
-- TODO(you): one sentence on your setup (bowl 100 mm, plate 198 mm, tags printed at 96%) and a frame from a
-  recording with the tags and hand overlay.
+- Setup: an iPhone Pro (LiDAR) recording RGB, depth and ARKit poses with the Stray Scanner app; my own bowl
+  (100 mm rim, 58 mm tall) and plate (198 mm); ArUco tags on the table (144 mm), bowl and plate, printed
+  at 96% scale (`assets/phone2panda_tags_A4.pdf`; the scale is corrected in `p2p/config.py`). Real sizes
+  are mapped onto LIBERO's smaller bowl and plate by scaling rim and plate radii.
+
+![hand paths of the 13 demos](assets/human_demos_topdown.png)
+
+*Left: my 13 demos as recorded. The bowl started in many places and the plate in a few, which is why a
+replay in fixed coordinates (absolute) cannot work. Right: the same paths relative to the bowl, which is
+how object-relative retargeting sees them. Straight segments are gaps where the hand tracker lost the hand.*
+
+<!-- TODO(you): add one frame of a recording with the tag and hand overlay (the contact sheet that
+tools/check_recording.py writes next to each recording, check_<name>.jpg, works well). -->
 
 ## Q1. Retargeting: what transfers from a human demo?
 
@@ -193,8 +203,17 @@ Didn't (or only partly)
 - Policies from phone data fall well short of teleop (57% vs 97%); grasp acquisition is the bottleneck.
 - My natural grasp side is unusable for this robot; the protocol had to constrain it.
 - Faithful human paths can be wrong for the robot's scene (the cabinet collision).
-- TODO(you): anything from the recording side (hand lost at the grasp, LiDAR vs PnP mismatch of 3-6% on the
-  table tag, unresolved but bypassed: the key quantities are LiDAR-free).
+- The hand tracker (MediaPipe) loses the hand exactly when it matters: at the grasp, the fingers are hidden
+  behind the rim. 6 of 25 recordings had no measurable grasp point and were excluded; in the rest, the
+  grasp point comes from the camera ray through the pinch pixel intersected with the rim plane, not from the
+  hand's 3D landmarks.
+- LiDAR and the tag's PnP pose disagree by 3-6% on the table tag's distance in every recording (the bowl tag
+  agrees within 1%). I did not resolve it; I bypassed it, since every quantity the robot uses comes from the
+  tags and the ray-plane grasp, not from LiDAR depth.
+- Smaller recording-side fixes that each cost a debugging round: hand detection was poor on sideways phone
+  frames (frames are now rotated upright first); autofocus changes the focal length by up to 3.4% within a
+  recording (per-frame intrinsics from ARKit); the bowl tag is often hidden during the carry (the bowl track
+  is filled in from the hand).
 
 ## Reproducibility notes
 
@@ -207,8 +226,9 @@ Didn't (or only partly)
 
 MimicGen (Mandlekar et al., 2023) for generating many robot demos from few; ACT (Zhao et al., 2023);
 LIBERO (Liu et al., 2023); IQL (Kostrikov et al., 2021) and advantage-weighted regression (Peng et al., 2019);
-world models in the Dreamer line (Hafner et al.). TODO(you): add what you know best (e.g. human-video
-retargeting work).
+world models in the Dreamer line (Hafner et al.). Learning manipulation from human video: DexMV (Qin et al.,
+2022), MimicPlay (Wang et al., 2023), EgoMimic (Kareer et al., 2024); Real2Render2Real (Yu et al., 2025) also
+turns phone captures of a human demo into many robot demos.
 
 ## Layout
 
