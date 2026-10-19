@@ -145,13 +145,35 @@ def to_batch(frame: dict) -> dict:
     return out
 
 
+def set_execution(policy, n_action_steps: int | None = None, temporal_ensemble: float | None = None) -> str:
+    """How much of each predicted action chunk is executed before the policy looks again (inference only,
+    no retraining). ACT predicts `chunk_size` (50) future actions per call:
+      * n_action_steps = k: execute the first k open-loop, then re-plan (we trained with 25 = 1.25 s at 20 Hz);
+      * temporal ensembling (the original ACT paper, coefficient 0.01): re-plan EVERY step and execute the
+        exponentially weighted average of all overlapping chunk predictions for the current step.
+    Fewer open-loop steps = more feedback, which matters most for the precise moment of the grasp."""
+    if temporal_ensemble is not None:
+        from lerobot.policies.act.modeling_act import ACTTemporalEnsembler
+
+        policy.config.temporal_ensemble_coeff = temporal_ensemble
+        policy.config.n_action_steps = 1
+        policy.temporal_ensembler = ACTTemporalEnsembler(temporal_ensemble, policy.config.chunk_size)
+    elif n_action_steps is not None:
+        policy.config.n_action_steps = n_action_steps
+    policy.reset()
+    return (f"temporal_ensemble={policy.config.temporal_ensemble_coeff}"
+            if policy.config.temporal_ensemble_coeff is not None else f"n_action_steps={policy.config.n_action_steps}")
+
+
 @torch.no_grad()
 def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: int = 128,
-             video_dir: str | None = None, n_videos: int = 3) -> dict:
+             video_dir: str | None = None, n_videos: int = 3, n_action_steps: int | None = None,
+             temporal_ensemble: float | None = None) -> dict:
     from p2p.sim.env import TaskEnv
     from p2p.stats import fmt_rate
 
     policy, pre, post = load(ckpt, device)
+    execution = set_execution(policy, n_action_steps, temporal_ensemble)
     env = TaskEnv(render=True, camera_size=256)
     results = []
     for n, i in enumerate(init_ids):
@@ -179,8 +201,8 @@ def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: in
             imageio.mimsave(Path(video_dir) / f"init{i:02d}_{'ok' if success else 'fail'}.mp4", frames, fps=20)
     env.close()
     k = sum(r["success"] for r in results)
-    summary = {"checkpoint": str(ckpt), "success": k, "n": len(results), "rate": fmt_rate(k, len(results)),
-               "episodes": results}
+    summary = {"checkpoint": str(ckpt), "execution": execution, "success": k, "n": len(results),
+               "rate": fmt_rate(k, len(results)), "episodes": results}
     print(summary["rate"])
     return summary
 
@@ -205,13 +227,16 @@ def main():
     e.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     e.add_argument("--videos", type=int, default=3)
     e.add_argument("--out", default=None)
+    e.add_argument("--n-action-steps", type=int, default=None, help="override: actions executed per chunk")
+    e.add_argument("--temporal-ensemble", type=float, default=None, help="e.g. 0.01: re-plan every step")
     a = ap.parse_args()
     if a.cmd == "train":
         train(a.dataset_root, a.out_dir, a.steps, a.batch_size, a.lr, a.weights, a.device, a.workers, a.seed,
               pretrained_backbone=not a.no_pretrained)
     else:
         out = Path(a.out or Path(a.ckpt).parent / "eval")
-        s = evaluate(a.ckpt, range(a.episodes), a.device, video_dir=str(out / "videos"), n_videos=a.videos)
+        s = evaluate(a.ckpt, range(a.episodes), a.device, video_dir=str(out / "videos"), n_videos=a.videos,
+                     n_action_steps=a.n_action_steps, temporal_ensemble=a.temporal_ensemble)
         out.mkdir(parents=True, exist_ok=True)
         (out / "eval.json").write_text(json.dumps(s, indent=1))
 
