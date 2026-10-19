@@ -1,0 +1,423 @@
+{
+ "scenes": 50,
+ "candidates_per_scene": 13,
+ "best_fixed_demo": "65ee6ec786",
+ "world_model_choice": "78% [65-87] (n=50)",
+ "random_choice_expected": "71%",
+ "best_fixed_demo_rate": "98%",
+ "oracle": "100% [93-100] (n=50)",
+ "diagnostic_wm_with_executed_actions": "98% [90-100] (n=50)",
+ "scenes_where_choice_matters": 50,
+ "in_those_scenes": {
+  "world_model": "78% [65-87] (n=50)",
+  "random_expected": "71%"
+ },
+ "within_scene_auroc_nominal": 0.6940937950937952,
+ "candidate_auroc_nominal": 0.6739780311457174,
+ "candidate_auroc_executed": 0.868047830923248,
+ "candidate_success_rate": "71%",
+ "median_nominal_vs_executed_action_gap": 0.0653245560824871,
+ "seconds": 2972,
+ "per_scene": [
+  {
+   "init": 0,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 1,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 0.0,
+   "oracle": true
+  },
+  {
+   "init": 2,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 3,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 4,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 5,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 6,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 7,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 8,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 9,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 10,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.5384615384615384,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 11,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 12,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 13,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 14,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 15,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.5384615384615384,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 16,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.9230769230769231,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 17,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 18,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 19,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 20,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 21,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.5384615384615384,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 22,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 23,
+   "wm": false,
+   "wm_executed": false,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 24,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 25,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 26,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 27,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 28,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 29,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 30,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 31,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 32,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 33,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.8461538461538461,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 34,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 35,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.5384615384615384,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 36,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 37,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 38,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.9230769230769231,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 39,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 40,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 41,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 42,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 43,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6153846153846154,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 44,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 45,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 46,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 47,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 48,
+   "wm": true,
+   "wm_executed": true,
+   "random": 0.7692307692307693,
+   "best_fixed": 1.0,
+   "oracle": true
+  },
+  {
+   "init": 49,
+   "wm": false,
+   "wm_executed": true,
+   "random": 0.6923076923076923,
+   "best_fixed": 1.0,
+   "oracle": true
+  }
+ ]
+}

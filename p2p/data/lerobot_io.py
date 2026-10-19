@@ -6,6 +6,7 @@ state definition and fps, and the only difference between "ours" and "official" 
   * the official LIBERO teleop demos of this task, taken from `lerobot/libero` and resized to 128 px.
 
     python -m p2p.data.lerobot_io ours     data/generated  data/lerobot/ours_all          [--limit N]
+    python -m p2p.data.lerobot_io ours     data/generated  data/lerobot/ours_consistent   --demos A,B,C
     python -m p2p.data.lerobot_io official -               data/lerobot/official
 """
 from __future__ import annotations
@@ -144,12 +145,14 @@ def main():
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--all", action="store_true", help="include failed episodes (ours)")
     ap.add_argument("--balanced", type=int, default=None, help="N successes spread evenly over human demos")
+    ap.add_argument("--demos", default=None, help="comma-separated human demo names: keep only their episodes")
     a = ap.parse_args()
     if a.source == "official":
         eps = official_episodes(limit=a.limit)
     else:
         seeds = balanced_seeds(Path(a.gen_dir), a.balanced) if a.balanced else None
-        eps = generated_episodes(Path(a.gen_dir), success_only=not a.all, limit=a.limit, seeds=seeds)
+        demos = set(a.demos.split(",")) if a.demos else None
+        eps = generated_episodes(Path(a.gen_dir), success_only=not a.all, limit=a.limit, seeds=seeds, demos=demos)
     n = write_dataset(eps, f"local/{Path(a.out_root).name}", Path(a.out_root))
     print(f"wrote {n} episodes to {a.out_root}")
 

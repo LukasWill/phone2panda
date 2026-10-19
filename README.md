@@ -12,7 +12,7 @@ action-conditioned **world model** that predicts the camera view and whether a p
 | Q1: How should a human demo be retargeted? | Intent-only 100%, object-relative 81%, absolute replay 0% (13 demos x 20 scenes each) |
 | Q2: How good is a policy trained only on my phone demos? | ACT 57% [47-66] (438 sim-verified episodes from 10 demos) vs 97% [92-99] on 49 official teleop demos |
 | Q2b: Does learning from failures help? | Not measurably. All 600 rollouts weighted by an IQL critic: 64% [54-73]; the same data unweighted: 60% [50-69]; successes only: 57% [47-66] (2 evals each, n=100). A first single evaluation suggested +12 points; re-evaluation showed it was mostly evaluation noise |
-| Q3: Can a world model judge a plan before execution? | Success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy); ranks the 3 strategies correctly |
+| Q3: Can a world model judge a plan before execution? | Given a plan's executed actions: success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy), and it ranks the 3 strategies correctly. Choosing among 13 candidate plans before acting: 78%, vs 71% random and 98% for always using the most reliable demo |
 
 ![world model: real camera (left) vs imagined from the first frame and the actions only (right)](assets/wm_hero_success.gif)
 
@@ -57,7 +57,8 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | World model | Colab | `notebooks/04_world_model.ipynb` | ~1.5 h |
 | Offline-RL weights | Colab CPU | `notebooks/05_offline_rl.ipynb` | ~25 min |
 | Policy diagnostics (why ours < teleop) | Colab | `notebooks/06_policy_diagnostics.ipynb` | ~15-60 min |
-| World model as a plan critic | Colab | `notebooks/07_wm_plan_selection.ipynb` | ~35-50 min |
+| World model as a plan critic | Colab | `notebooks/07_wm_plan_selection.ipynb` | ~50 min |
+| Test of H2 (consistent grasps) | Colab | `notebooks/08_consistent_grasp.ipynb` | ~2 h |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -216,7 +217,7 @@ explanations and the evidence so far:
 | | Hypothesis | Evidence so far | Test |
 |---|---|---|---|
 | H1 | **Teacher ceiling.** A student trained by imitation rarely beats its teacher. | Our teacher succeeds in 85% of these scenes; the official demos come from a human teleoperator, presumably near 100%. This explains at most ~15 of the 40 points: our student keeps 57/85 = 67% of its teacher's success, the teleop student 97%. | - |
-| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Supported.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps. | Training on a consistent subset of demos, or on intent data (one grasp style), would confirm it. |
+| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Supported.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps. | Notebook 08: ACT on the 5 demos whose grasp sides lie within 10° (a subset of `ours_all`, fewer episodes); prediction fixed in the notebook before running. |
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
 | H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | After a missed grasp our policy hovers instead of trying again. | Add noise to the executed actions during generation while recording the follower's corrections (DART, Laskey et al., 2017). |
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
@@ -226,8 +227,7 @@ demonstrations grasp in four times more varied ways than teleop, and our policy 
 choose between several grasps for the same image (it works only when it commits to a chunk). H4 fits the same
 pattern but is not tested yet; teleop demos also vary more where it helps (grasp height spread 1.2 cm vs our
 0.13 cm), i.e. ours are varied where it hurts and rigid where variation would teach robustness. H3 is likely
-minor; H5 is rejected. The next experiment that would settle H2: train on intent data or on demos with similar
-grasp sides.
+minor; H5 is rejected. Notebook 08 tests H2 directly by training on the demos with similar grasp sides.
 
 ### Learning from failures (offline RL, gated)
 
@@ -251,7 +251,9 @@ simulator state, the policy only images.
   The first evaluation suggested a 12-point gain from the weights. Re-evaluating the same checkpoints (GPU
   evaluation is not bit-reproducible) moved the unweighted run by 12 points, so a single 50-episode evaluation
   cannot resolve differences of this size. Pooled, the three are within noise of each other: **no measurable
-  effect of learning from failures** at this scale (one training seed each).
+  effect of learning from failures** at this scale. That is not proof of no effect: weighted minus unweighted
+  is +4 points with a 95% interval of roughly -9 to +17, and this interval is optimistic, because both
+  evaluations reuse the same 50 scenes and training-seed variation (one seed each) is not included.
 
 ## Q3. World model (Part B)
 
@@ -374,6 +376,43 @@ moments instead of the outcome; it would score well here and fail on plans of an
 position is supervised at every frame of every episode and is a physical quantity, so reading success from
 it (with LIBERO's own criterion, distance to the plate centre) cannot take that shortcut.
 
+### Choosing a plan with the world model (notebook 07)
+
+Can the world model make a decision, not just rank strategies? In each of the 50 evaluation scenes the robot
+has 13 candidate plans: the object-relative retargeting of each main demo, with a random grasp and place
+perturbation as in data generation. The world model must pick one before anything is executed. It needs the
+action sequence of each plan, but the waypoint follower computes actions by feedback on the gripper pose, so
+the sequence is produced against a nominal model of the arm (how the gripper moves for a given command,
+fitted on free motion; `tools/fit_arm_model.py`). The model knows the arm, not the bowl or the cabinet. The
+world model imagines each sequence from the scene's real first frame, and the candidate whose imagined bowl
+ends closest to the plate is executed. All 650 candidates were also run in the simulator, only to score the
+choice (`results/plan_select/`):
+
+| Rule for choosing one of the 13 candidates | Success (50 scenes) |
+|---|---|
+| oracle: some candidate succeeds | 100% |
+| always the demo with the best generation yield (`65ee`), fixed in advance | 98% |
+| world model on the nominal action sequences | **78%** [65-87] |
+| a random candidate (average over the 13) | 71% |
+
+- **The world model barely beats a random choice (+7 points, not significant) and loses clearly to a trivial
+  rule.** Within a scene it separates working from failing candidates only weakly (AUROC 0.69, against 0.93
+  on the held-out test episodes above).
+- **Why: its input, not its imagination.** On the test episodes it was given the actions that were really
+  executed. Here it gets actions from an arm model without contacts, and in these scenes failure comes from
+  contacts. `c521`'s arm stalls on its approach in the simulator (all failures run the full 300 steps); on the
+  nominal arm it does not, so the world model imagines a success (median 2.2 cm from the plate centre) and
+  chose `c521` in 4 scenes, all failures. Its other main error is overconfidence in `17c2` (lowest imagined
+  distance, chosen 14 times, 9 successes).
+- **A tempting diagnostic is not valid.** Fed the executed actions instead, the same choice rule reaches 98%.
+  But executed actions already contain the outcome: after a collision or a stall the follower's corrections
+  differ from the plan, and how much they differ from the nominal actions predicts success on its own (AUROC
+  0.84). The 98% mixes the world model's skill with information no planner has before acting.
+- **Lesson:** an action-conditioned world model judges an action sequence, but a closed-loop controller's
+  action sequence depends on what happens. Judging such a plan properly means running the controller inside
+  the imagination: the world model would also have to predict the gripper pose, so the follower can react to
+  the imagined state. Ours predicts only the image and the bowl.
+
 ## Takeaways: when do offline RL and the world model help?
 
 **Offline RL (advantage-weighted ACT): no measurable benefit here.**
@@ -397,7 +436,7 @@ it (with LIBERO's own criterion, distance to the plate centre) cannot take that 
 - When it would help: when failures differ from successes in actions the policy can see and copy (here, a
   consistent grasp style but varied placement), and when evaluations are large enough to detect it.
 
-**World model: helps as an evaluator of whole plans; not as a source of fine detail.**
+**World model: helps as an evaluator of executed action sequences; not yet as a planner.**
 - It works where success is decided by coarse facts visible at 64 px: did the bowl move with the gripper, and
   where did it end up. From the first frame and a plan's actions it separates successful from failed episodes
   (AUROC 0.93 within object-relative, 0.97 across strategies) and ranks the retargeting strategies correctly,
@@ -407,9 +446,10 @@ it (with LIBERO's own criterion, distance to the plate centre) cannot take that 
   slips, and at short horizons copying the current frame predicts pixels better.
 - That is also why it was not used to train the policy: imagined rollouts with a 6 cm bowl error cannot teach
   a millimetre grasp. Screening plans is the use that matches its accuracy.
-- Open: whether it improves a decision. Notebook 07 uses it to choose among 13 candidate plans in each
-  evaluation scene. It can only help where candidates differ in outcome within a scene and its errors are
-  smaller than those differences.
+- As a decision maker it did not help (yet): choosing among 13 candidate plans per scene, it reached 78%
+  against 71% for a random choice and 98% for always using the most reliable demo. The bottleneck is that a
+  closed-loop plan's actions depend on contacts the world model is never shown before acting; it helps only
+  when the action sequence is known in advance, or when the controller can run inside the imagination.
 
 ## What worked, what didn't
 
@@ -463,7 +503,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-07
+notebooks/     Colab notebooks 00-08
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README
