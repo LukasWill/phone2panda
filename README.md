@@ -59,6 +59,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Policy diagnostics (why ours < teleop) | Colab | `notebooks/06_policy_diagnostics.ipynb` | ~15-60 min |
 | World model as a plan critic | Colab | `notebooks/07_wm_plan_selection.ipynb` | ~50 min |
 | Test of H2 (consistent grasps) | Colab | `notebooks/08_consistent_grasp.ipynb` | ~2 h |
+| Test of H4 (corrective data, DART) | Colab | `notebooks/09_dart_corrections.ipynb`, once per `VARIANT` | ~3 h each |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -220,7 +221,7 @@ explanations and the evidence so far:
 | H1 | **Teacher ceiling.** A student trained by imitation rarely beats its teacher. | Our teacher succeeds in 85% of these scenes; the official demos come from a human teleoperator, presumably near 100%. This explains at most ~15 of the 40 points: our student keeps 57/85 = 67% of its teacher's success, the teleop student 97%. | - |
 | H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Real, but not the main cause.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps.  Direct test (notebook 08, prediction fixed beforehand: >= 70% would confirm H2 as the main cause, <= 60% would reject it): ACT on the 5 demos with grasp sides within 10° reaches **59%** [49-68] (2 evals), the same as `ours_all`. Missed grasps halve (7.5 vs 16 per 50 episodes) and averaging hurts less (32% vs 12%), but placement errors rise (9 vs 1 on the plate > 3 cm off), so the total does not move. | Done (`results/act/ours_consistent_s0/`). |
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
-| H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | After a missed grasp our policy hovers instead of trying again. | Add noise to the executed actions during generation while recording the follower's corrections (DART, Laskey et al., 2017). |
+| H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | After a missed grasp our policy hovers instead of trying again. | Notebook 09: regenerate the 5 consistent demos twice on the same 650 scenes, with and without noise on the executed motion while recording the teacher's corrections (DART, Laskey et al., 2017); prediction fixed in the notebook. |
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
 
 Current reading, after the direct test: **no single cause explains the gap.**
@@ -235,8 +236,8 @@ Current reading, after the direct test: **no single cause explains the gap.**
 - H4 (too-clean demonstrations, no corrections in the data) is now the main untested candidate: it would make
   every grasp and placement fragile, whatever the grasp style. Teleop demos vary where variation teaches
   robustness (grasp height spread 1.2 cm vs our 0.13 cm). H3 is likely minor; H5 is rejected.
-- The test that would follow: regenerate the same 5 demos with noise injected into the executed actions
-  (DART) and with more episodes, so that consistency, data size and corrective data are separated.
+- Running (notebook 09): the same 5 demos regenerated with 450 episodes each way, clean and with DART noise on
+  the same scenes, so that data size (clean vs notebook 08) and corrective data (DART vs clean) are separated.
 
 ### Learning from failures (offline RL, gated)
 
@@ -513,7 +514,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-08
+notebooks/     Colab notebooks 00-09
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README

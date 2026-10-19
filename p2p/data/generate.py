@@ -51,6 +51,37 @@ def perturb_demo(demo: dict, rng: np.random.Generator, grasp_sigma: float, place
     return d, {"grasp_rot_deg": float(np.degrees(ang)), "place_shift_cm": (100 * dp).round(2).tolist()}
 
 
+class ActionNoise:
+    """DART-style noise injection (Laskey et al., 2017) for the scripted teacher.
+
+    The follower computes its clean action a_t from the CURRENT (possibly disturbed) gripper pose; the
+    environment executes a_t + n_t, and the dataset records a_t. The recorded data therefore contains states a
+    little off the teacher's nominal path, each labelled with the teacher's correction back towards the plan:
+    exactly what a policy needs after its own small errors, and what clean scripted demos never show.
+
+    n_t is temporally correlated (an AR(1) / Ornstein-Uhlenbeck process with time constant `tau` steps), so the
+    disturbance drifts like a policy's error instead of jittering; it acts on the 6 motion dimensions only,
+    never on the gripper command. sigma is in action units (1 = 5 cm / 0.5 rad per step commanded).
+    """
+
+    def __init__(self, sigma: float, tau: float, rng: np.random.Generator):
+        self.sigma, self.rho, self.rng = sigma, float(np.exp(-1.0 / max(tau, 1e-6))), rng
+        self.n = np.zeros(6)
+
+    def __call__(self, a: np.ndarray) -> np.ndarray:
+        if self.sigma <= 0:
+            return a
+        self.n = self.rho * self.n + np.sqrt(1 - self.rho ** 2) * self.sigma * self.rng.standard_normal(6)
+        out = np.array(a, dtype=np.float64)
+        out[:6] = out[:6] + self.n
+        return out
+
+
+def noise_rng(seed: int) -> np.random.Generator:
+    """Separate stream: the same seed gives the same scene and plan with or without noise (paired data)."""
+    return np.random.default_rng(seed + 7_777_777)
+
+
 def _run(job):
     from p2p.retarget.strategies import make_plan
     from p2p.sim.env import BOWL, PLATE
@@ -63,6 +94,7 @@ def _run(job):
     _ENV.reset(seed=seed, object_shift=shift)
     d, pert = perturb_demo(demo, rng, cfg["grasp_sigma"], cfg["place_sigma"])
     follower = WaypointFollower(make_plan(strategy, d, _ENV.scene(), cfg.get("abs_offset")))
+    noise = ActionNoise(cfg.get("action_noise", 0.0), cfg.get("noise_tau", 5.0), noise_rng(seed))
     buf = {k: [] for k in ("image", "image2", "state", "action", "low_dim")}
     success, done = False, False
     while not done:
@@ -71,11 +103,11 @@ def _run(job):
         buf["image"].append(f["observation.images.image"])
         buf["image2"].append(f["observation.images.image2"])
         buf["state"].append(f["observation.state"])
-        buf["action"].append(a.astype(np.float32))
+        buf["action"].append(a.astype(np.float32))          # the label is always the teacher's clean action
         buf["low_dim"].append(_ENV.low_dim_state())
-        _, success, done = _ENV.step(a)
+        _, success, done = _ENV.step(noise(a))               # what is executed may be disturbed
     meta = {"demo": demo["name"], "strategy": strategy, "seed": seed, "success": bool(success),
-            "steps": _ENV.t, "last_waypoint": follower.current, **pert}
+            "steps": _ENV.t, "last_waypoint": follower.current, "action_noise": cfg.get("action_noise", 0.0), **pert}
     # write to a temporary name, then rename: a disconnect mid-write never leaves a half file that looks done
     final = Path(out_dir) / f"ep_{seed:06d}.npz"
     tmp = final.with_name(final.name + ".tmp")
@@ -135,6 +167,9 @@ def main():
     ap.add_argument("--place-sigma", type=float, default=0.015, help="m")
     ap.add_argument("--obj-shift", type=float, default=0.03, help="max extra bowl/plate shift, m")
     ap.add_argument("--image-size", type=int, default=128)
+    ap.add_argument("--action-noise", type=float, default=0.0,
+                    help="DART noise on the executed motion (action units); labels stay clean")
+    ap.add_argument("--noise-tau", type=float, default=5.0, help="noise correlation time, control steps")
     ap.add_argument("--seed0", type=int, default=1000,
                     help="episode seeds are seed0 + 1000*demo_index + k; use a distinct range per dataset")
     a = ap.parse_args()
@@ -147,7 +182,8 @@ def main():
     only = set(filter(None, a.demos.split(",")))
     all_demos = [load(p) for p in sorted(Path(a.processed_dir).glob("*.npz"))]
     demos = [d for d in all_demos if d["name"] not in hold and (not only or d["name"] in only)]
-    cfg = dict(grasp_sigma=a.grasp_sigma, place_sigma=a.place_sigma, obj_shift=a.obj_shift, image_size=a.image_size)
+    cfg = dict(grasp_sigma=a.grasp_sigma, place_sigma=a.place_sigma, obj_shift=a.obj_shift, image_size=a.image_size,
+               action_noise=a.action_noise, noise_tau=a.noise_tau)
     if a.strategy == "absolute":
         # the one global human->sim alignment, fitted on ALL demos of the folder exactly as in Table 1
         from p2p.retarget.replay import sim_bowl_mean
