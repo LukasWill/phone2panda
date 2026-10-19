@@ -41,7 +41,8 @@ def row(path: str) -> str:
     k = [kind(e) for e in eps]
     ok = [e for e in eps if e["success"]]
     med = lambda key: f"{np.median([e[key] for e in ok]):.1f}" if ok else "-"
-    name = Path(path).parent.name + "/" + Path(path).stem
+    p = Path(path)
+    name = f"{p.parent.parent.name}/{p.parent.name}" if p.stem == "eval" else f"{p.parent.name}/{p.stem}"
     cols = [fmt_rate(len(ok), len(eps)), s.get("execution", "n_action_steps=25")] + \
            [str(k.count(c)) for c in ("never lifted", "left off plate", "on plate, > 3 cm", "within 3 cm, not counted")] + \
            [med("steps"), med("bowl_to_plate_cm"), med("bowl_lift_cm")]

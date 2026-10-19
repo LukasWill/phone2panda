@@ -11,7 +11,7 @@ action-conditioned **world model** that predicts the camera view and whether a p
 |---|---|
 | Q1: How should a human demo be retargeted? | Intent-only 100%, object-relative 81%, absolute replay 0% (13 demos x 20 scenes each) |
 | Q2: How good is a policy trained only on my phone demos? | ACT 57% [47-66] (438 sim-verified episodes from 10 demos) vs 97% [92-99] on 49 official teleop demos |
-| Q2b: Does learning from failures help? | All 600 rollouts weighted by an IQL critic: 66% [52-78]; the same data unweighted: 54% [40-67]; successes only: 57% [47-66]. Weighting helps by ~12 points; one seed each, so suggestive, not significant |
+| Q2b: Does learning from failures help? | Not measurably. All 600 rollouts weighted by an IQL critic: 64% [54-73]; the same data unweighted: 60% [50-69]; successes only: 57% [47-66] (2 evals each, n=100). A first single evaluation suggested +12 points; re-evaluation showed it was mostly evaluation noise |
 | Q3: Can a world model judge a plan before execution? | Success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy); ranks the 3 strategies correctly |
 
 ![world model: real camera (left) vs imagined from the first frame and the actions only (right)](assets/wm_hero_success.gif)
@@ -183,11 +183,10 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | official teleop (`lerobot/libero`) | 49 | **97%** [92-99] (2 evals, n=100) | 0 | 0 | 0 |
 | ours_50 (count-matched) | 50 | **46%** [33-60] | 13 | 7 | 7 |
 | ours_all | 438 | **57%** [47-66] (2 evals, n=100) | 16 | 4 | 1 |
-| ours_mix + IQL advantage weights | 600 | **66%** [52-78] | - | - | - |
-| ours_mix, unweighted (control) | 600 | **54%** [40-67] | - | - | - |
+| ours_mix + IQL advantage weights | 600 | **64%** [54-73] (2 evals, n=100) | 10 | 2 | 7 |
+| ours_mix, unweighted (control) | 600 | **60%** [50-69] (2 evals, n=100) | 15 | 1 | 1 |
 
-Failure columns are from one evaluation of 50 episodes each (being re-evaluated for the two ours_mix runs:
-notebook 06). For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
+Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
 follower) succeeds in 85% of these scenes (Table 1).
 
 - **The gap to teleop is in grasping, not placing.** Most failures never lift the bowl. When our policy does
@@ -196,6 +195,16 @@ follower) succeeds in 85% of these scenes (Table 1).
   off-centre failures) but not grasping.
 - **No recovery behaviour:** after a missed grasp the policy hovers over the plate. The success-filtered data
   contains no recoveries.
+- **How the policy executes its predictions matters for our data, not for teleop data** (same checkpoints,
+  only the execution changed; `results/act/*/eval_n10.json`, `eval_te.json`):
+
+  | Execution | official | ours_all |
+  |---|---|---|
+  | 25 of 50 predicted actions, then predict again (default) | 97% (n=100) | 57% (n=100) |
+  | 10 of 50, then predict again | 96% | 50% |
+  | predict every step, average all predictions for this step (temporal ensembling) | 100% | **12%** (33 of 44 failures never lift the bowl) |
+
+  Looking more often does not help our policy, and averaging its predictions destroys it. See H2 and H5 below.
 
 ### Why is the policy trained on my demos worse than the one trained on teleoperation?
 
@@ -207,14 +216,18 @@ explanations and the evidence so far:
 | | Hypothesis | Evidence so far | Test |
 |---|---|---|---|
 | H1 | **Teacher ceiling.** A student trained by imitation rarely beats its teacher. | Our teacher succeeds in 85% of these scenes; the official demos come from a human teleoperator, presumably near 100%. This explains at most ~15 of the 40 points: our student keeps 57/85 = 67% of its teacher's success, the teleop student 97%. | - |
-| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | Missed grasps dominate the failures; 9x more data of the same kind barely helps. | Notebook 06 compares the wrist angle at the grasp across official and our episodes. Training on a consistent subset of demos, or on intent data (one grasp style), would confirm it. |
+| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Supported.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps. | Training on a consistent subset of demos, or on intent data (one grasp style), would confirm it. |
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
 | H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | After a missed grasp our policy hovers instead of trying again. | Add noise to the executed actions during generation while recording the follower's corrections (DART, Laskey et al., 2017). |
-| H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | None yet. | Notebook 06: execute 10 actions per chunk, or re-plan every step (temporal ensembling). If our policy gains much more than the teleop one, this matters. |
+| H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
 
-Current reading: H1 explains part of the gap. H2 and H4 predict exactly the observed pattern (missed grasps,
-no recovery, good placement once grasped), so they are the main suspects for the rest; H3 is likely minor.
-Notebook 06 measures H2 and H5 without retraining.
+Current reading: H1 explains part of the gap. H2 is now the best-supported cause of the rest: our
+demonstrations grasp in four times more varied ways than teleop, and our policy behaves like one that has to
+choose between several grasps for the same image (it works only when it commits to a chunk). H4 fits the same
+pattern but is not tested yet; teleop demos also vary more where it helps (grasp height spread 1.2 cm vs our
+0.13 cm), i.e. ours are varied where it hurts and rigid where variation would teach robustness. H3 is likely
+minor; H5 is rejected. The next experiment that would settle H2: train on intent data or on demos with similar
+grasp sides.
 
 ### Learning from failures (offline RL, gated)
 
@@ -227,18 +240,18 @@ simulator state, the policy only images.
 - Gate, fixed before the run: the critic must tell success from failure halfway through an episode.
   AUROC 0.95 (0.66 from the first frame) -> passed (`results/rl/iql_diagnostics.json`).
 - Weights: success frames 1.15 on average, failure frames 0.82; 36% effective sample size.
-- Result, three ways to use the same 600 rollouts:
+- Result, three ways to use the same 600 rollouts (each checkpoint evaluated twice on the 50 scenes):
 
-  | Training data | Success |
-  |---|---|
-  | successes only (filtered imitation, ours_all) | 57% [47-66] (n=100) |
-  | all rollouts, unweighted (control) | 54% [40-67] |
-  | all rollouts, IQL advantage-weighted | **66%** [52-78] |
+  | Training data | First evaluation | Second evaluation | Pooled (n=100) |
+  |---|---|---|---|
+  | successes only (filtered imitation, ours_all) | 56% | 58% | 57% [47-66] |
+  | all rollouts, unweighted (control) | 54% | 66% | 60% [50-69] |
+  | all rollouts, IQL advantage-weighted | 66% | 62% | 64% [54-73] |
 
-  Adding the failures without weights does not help (imitating failed grasps should hurt, and the
-  successes still dominate); the critic's weights turn the same data into the best of the three runs.
-  The ordering matches the hypothesis, but the intervals overlap and each configuration is one seed, so this
-  is suggestive, not significant; a few more seeds would settle it.
+  The first evaluation suggested a 12-point gain from the weights. Re-evaluating the same checkpoints (GPU
+  evaluation is not bit-reproducible) moved the unweighted run by 12 points, so a single 50-episode evaluation
+  cannot resolve differences of this size. Pooled, the three are within noise of each other: **no measurable
+  effect of learning from failures** at this scale (one training seed each).
 
 ## Q3. World model (Part B)
 
@@ -363,20 +376,26 @@ it (with LIBERO's own criterion, distance to the plate centre) cannot take that 
 
 ## Takeaways: when do offline RL and the world model help?
 
-**Offline RL (advantage-weighted ACT): probably helps here; not yet conclusive.**
-- Result: 66% with critic weights vs 57% on successes only and 54% on all rollouts unweighted; one seed each,
-  overlapping intervals.
-- Why it can help here: the failures are near-misses that look like successes until the last moment (half
+**Offline RL (advantage-weighted ACT): no measurable benefit here.**
+- Result: 64% with critic weights vs 60% on all rollouts unweighted and 57% on successes only (pooled over two
+  evaluations each, intervals overlapping). An early single evaluation suggested +12 points; it did not survive
+  re-evaluation.
+- Why it could have helped: the failures are near-misses that look like successes until the last moment (half
   end on the plate, just over 3 cm off). Filtered imitation throws them away; plain imitation copies their
   mistakes. A critic that can tell them apart lets the policy learn from all 600 rollouts while leaning
   towards the actions that led to success.
-- Where it cannot help: (1) weighting only re-ranks actions that are in the data; it cannot create behaviour
+- Why it did not: our main failure is choosing between inconsistent grasps (H2). The critic cannot fix that,
+  because every grasp style in the data succeeds most of the time, so the weights have no reason to prefer one style;
+  what they do down-weight is probably the near-miss end of failed episodes, which is not where our policy
+  fails. More
+  generally: (1) weighting only re-ranks actions that are in the data; it cannot create behaviour
   the data lacks, such as trying again after a missed grasp. (2) Early in an episode the critic cannot yet
   tell success from failure (AUROC 0.66 at the first frame), so the weights there are close to uniform and
   the approach to the grasp, where our policy fails most, probably gets little guidance. (3) It costs data:
   the effective sample size drops to 36%, which hurts more the smaller the dataset. (4) It needs a critic
   that is right; this one sees the simulator's state, which a real robot would not have.
-- Open: whether the gain is in grasping or placing (notebook 06), and more seeds.
+- When it would help: when failures differ from successes in actions the policy can see and copy (here, a
+  consistent grasp style but varied placement), and when evaluations are large enough to detect it.
 
 **World model: helps as an evaluator of whole plans; not as a source of fine detail.**
 - It works where success is decided by coarse facts visible at 64 px: did the bowl move with the gripper, and
@@ -399,10 +418,11 @@ Worked
   generation that reproduces my per-demo yield predictions within noise.
 - Object-anchored retargeting (0% -> 81%), and the simulator as a filter.
 - A small world model that ranks plans correctly on held-out demos.
-- Learning from failed rollouts with a critic's weights (66% vs 57%), though one seed per configuration.
 
 Didn't (or only partly)
-- Policies from phone data fall well short of teleop (57% vs 97%); grasp acquisition is the bottleneck.
+- Policies from phone data fall well short of teleop (57% vs 97%); grasp acquisition is the bottleneck,
+  most likely because my demos grasp in four times more varied ways than teleop.
+- Learning from failed rollouts (IQL weights): no measurable gain once evaluation noise was accounted for.
 - My natural grasp side is unusable for this robot; the protocol had to constrain it.
 - Faithful human paths can be wrong for the robot's scene (the cabinet collision).
 - The hand tracker (MediaPipe) loses the hand exactly when it matters: at the grasp, the fingers are hidden
@@ -420,7 +440,7 @@ Didn't (or only partly)
 ## Reproducibility notes
 
 - Evaluation is not bit-reproducible on a GPU: re-evaluating the same checkpoint flipped 17 of 50 episodes
-  (28 -> 29 successes), so headline rates pool two evaluations where available.
+  (28 -> 29 successes), and another checkpoint moved from 54% to 66%. Headline rates pool two evaluations.
 - Soft resets keep MuJoCo's solver warm-start: a seed fixes the scene exactly, not the rollout.
 - One training seed per configuration; differences below ~15 points are not resolvable with n = 50.
 
