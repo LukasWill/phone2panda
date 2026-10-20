@@ -1,0 +1,359 @@
+{
+ "checkpoint": "/content/runs/act_ours_consistent_dart_s0/final",
+ "execution": "n_action_steps=25",
+ "success": 36,
+ "n": 50,
+ "rate": "72% [58-83] (n=50)",
+ "episodes": [
+  {
+   "init": 0,
+   "success": true,
+   "steps": 118,
+   "bowl_lift_cm": 3.4,
+   "bowl_to_plate_cm": 1.5
+  },
+  {
+   "init": 1,
+   "success": true,
+   "steps": 130,
+   "bowl_lift_cm": 5.4,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 2,
+   "success": true,
+   "steps": 143,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 1.5
+  },
+  {
+   "init": 3,
+   "success": true,
+   "steps": 120,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 4,
+   "success": true,
+   "steps": 127,
+   "bowl_lift_cm": 5.3,
+   "bowl_to_plate_cm": 2.8
+  },
+  {
+   "init": 5,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.2,
+   "bowl_to_plate_cm": 12.2
+  },
+  {
+   "init": 6,
+   "success": true,
+   "steps": 229,
+   "bowl_lift_cm": 6.0,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 7,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.7,
+   "bowl_to_plate_cm": 20.4
+  },
+  {
+   "init": 8,
+   "success": true,
+   "steps": 106,
+   "bowl_lift_cm": 5.1,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 9,
+   "success": true,
+   "steps": 149,
+   "bowl_lift_cm": 8.7,
+   "bowl_to_plate_cm": 2.7
+  },
+  {
+   "init": 10,
+   "success": true,
+   "steps": 256,
+   "bowl_lift_cm": 5.0,
+   "bowl_to_plate_cm": 2.9
+  },
+  {
+   "init": 11,
+   "success": true,
+   "steps": 128,
+   "bowl_lift_cm": 5.5,
+   "bowl_to_plate_cm": 1.9
+  },
+  {
+   "init": 12,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.1,
+   "bowl_to_plate_cm": 11.8
+  },
+  {
+   "init": 13,
+   "success": true,
+   "steps": 107,
+   "bowl_lift_cm": 4.7,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 14,
+   "success": true,
+   "steps": 181,
+   "bowl_lift_cm": 7.5,
+   "bowl_to_plate_cm": 1.8
+  },
+  {
+   "init": 15,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.1,
+   "bowl_to_plate_cm": 12.4
+  },
+  {
+   "init": 16,
+   "success": true,
+   "steps": 105,
+   "bowl_lift_cm": 4.6,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 17,
+   "success": true,
+   "steps": 103,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 18,
+   "success": true,
+   "steps": 111,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 19,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.6,
+   "bowl_to_plate_cm": 12.9
+  },
+  {
+   "init": 20,
+   "success": true,
+   "steps": 158,
+   "bowl_lift_cm": 9.4,
+   "bowl_to_plate_cm": 2.9
+  },
+  {
+   "init": 21,
+   "success": true,
+   "steps": 97,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 0.2
+  },
+  {
+   "init": 22,
+   "success": true,
+   "steps": 125,
+   "bowl_lift_cm": 4.4,
+   "bowl_to_plate_cm": 1.8
+  },
+  {
+   "init": 23,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.1,
+   "bowl_to_plate_cm": 14.7
+  },
+  {
+   "init": 24,
+   "success": true,
+   "steps": 127,
+   "bowl_lift_cm": 7.0,
+   "bowl_to_plate_cm": 2.2
+  },
+  {
+   "init": 25,
+   "success": true,
+   "steps": 134,
+   "bowl_lift_cm": 5.8,
+   "bowl_to_plate_cm": 1.9
+  },
+  {
+   "init": 26,
+   "success": true,
+   "steps": 132,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 2.3
+  },
+  {
+   "init": 27,
+   "success": true,
+   "steps": 150,
+   "bowl_lift_cm": 6.2,
+   "bowl_to_plate_cm": 1.2
+  },
+  {
+   "init": 28,
+   "success": true,
+   "steps": 128,
+   "bowl_lift_cm": 7.2,
+   "bowl_to_plate_cm": 2.2
+  },
+  {
+   "init": 29,
+   "success": true,
+   "steps": 111,
+   "bowl_lift_cm": 4.4,
+   "bowl_to_plate_cm": 1.7
+  },
+  {
+   "init": 30,
+   "success": true,
+   "steps": 112,
+   "bowl_lift_cm": 4.6,
+   "bowl_to_plate_cm": 1.2
+  },
+  {
+   "init": 31,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.9,
+   "bowl_to_plate_cm": 11.7
+  },
+  {
+   "init": 32,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 1.3,
+   "bowl_to_plate_cm": 11.2
+  },
+  {
+   "init": 33,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 4.4,
+   "bowl_to_plate_cm": 15.3
+  },
+  {
+   "init": 34,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 5.7,
+   "bowl_to_plate_cm": 4.7
+  },
+  {
+   "init": 35,
+   "success": true,
+   "steps": 111,
+   "bowl_lift_cm": 4.3,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 36,
+   "success": true,
+   "steps": 129,
+   "bowl_lift_cm": 7.1,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 37,
+   "success": true,
+   "steps": 195,
+   "bowl_lift_cm": 5.7,
+   "bowl_to_plate_cm": 0.8
+  },
+  {
+   "init": 38,
+   "success": true,
+   "steps": 105,
+   "bowl_lift_cm": 3.5,
+   "bowl_to_plate_cm": 1.6
+  },
+  {
+   "init": 39,
+   "success": true,
+   "steps": 154,
+   "bowl_lift_cm": 8.6,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 40,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.4,
+   "bowl_to_plate_cm": 13.3
+  },
+  {
+   "init": 41,
+   "success": true,
+   "steps": 132,
+   "bowl_lift_cm": 4.3,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 42,
+   "success": true,
+   "steps": 109,
+   "bowl_lift_cm": 4.3,
+   "bowl_to_plate_cm": 2.1
+  },
+  {
+   "init": 43,
+   "success": true,
+   "steps": 105,
+   "bowl_lift_cm": 4.3,
+   "bowl_to_plate_cm": 0.7
+  },
+  {
+   "init": 44,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 1.1,
+   "bowl_to_plate_cm": 9.4
+  },
+  {
+   "init": 45,
+   "success": true,
+   "steps": 146,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 3.0
+  },
+  {
+   "init": 46,
+   "success": true,
+   "steps": 135,
+   "bowl_lift_cm": 4.7,
+   "bowl_to_plate_cm": 0.3
+  },
+  {
+   "init": 47,
+   "success": true,
+   "steps": 261,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 2.2
+  },
+  {
+   "init": 48,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.7,
+   "bowl_to_plate_cm": 15.8
+  },
+  {
+   "init": 49,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.2,
+   "bowl_to_plate_cm": 5.3
+  }
+ ]
+}

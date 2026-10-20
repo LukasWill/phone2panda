@@ -221,6 +221,7 @@ def main():
     t.add_argument("--workers", type=int, default=2)
     t.add_argument("--seed", type=int, default=0)
     t.add_argument("--no-pretrained", action="store_true")
+    t.add_argument("--save-every", type=int, default=5000, help="checkpoint interval (steps)")
     e = sub.add_parser("eval")
     e.add_argument("ckpt")
     e.add_argument("--episodes", type=int, default=50)
@@ -232,7 +233,8 @@ def main():
     a = ap.parse_args()
     if a.cmd == "train":
         train(a.dataset_root, a.out_dir, a.steps, a.batch_size, a.lr, a.weights, a.device, a.workers, a.seed,
-              pretrained_backbone=not a.no_pretrained)
+              pretrained_backbone=not a.no_pretrained,
+              save_every=a.save_every)
     else:
         out = Path(a.out or Path(a.ckpt).parent / "eval")
         s = evaluate(a.ckpt, range(a.episodes), a.device, video_dir=str(out / "videos"), n_videos=a.videos,

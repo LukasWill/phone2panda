@@ -1,0 +1,359 @@
+{
+ "checkpoint": "/content/runs/act_ours_consistent_clean_s0/final",
+ "execution": "n_action_steps=25",
+ "success": 35,
+ "n": 50,
+ "rate": "70% [56-81] (n=50)",
+ "episodes": [
+  {
+   "init": 0,
+   "success": true,
+   "steps": 126,
+   "bowl_lift_cm": 7.1,
+   "bowl_to_plate_cm": 1.2
+  },
+  {
+   "init": 1,
+   "success": true,
+   "steps": 143,
+   "bowl_lift_cm": 5.4,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 2,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.6,
+   "bowl_to_plate_cm": 15.1
+  },
+  {
+   "init": 3,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 8.6,
+   "bowl_to_plate_cm": 5.7
+  },
+  {
+   "init": 4,
+   "success": true,
+   "steps": 131,
+   "bowl_lift_cm": 7.6,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 5,
+   "success": true,
+   "steps": 137,
+   "bowl_lift_cm": 5.7,
+   "bowl_to_plate_cm": 1.8
+  },
+  {
+   "init": 6,
+   "success": true,
+   "steps": 145,
+   "bowl_lift_cm": 9.9,
+   "bowl_to_plate_cm": 2.0
+  },
+  {
+   "init": 7,
+   "success": true,
+   "steps": 109,
+   "bowl_lift_cm": 3.4,
+   "bowl_to_plate_cm": 2.6
+  },
+  {
+   "init": 8,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 0.1,
+   "bowl_to_plate_cm": 11.4
+  },
+  {
+   "init": 9,
+   "success": true,
+   "steps": 144,
+   "bowl_lift_cm": 9.5,
+   "bowl_to_plate_cm": 2.9
+  },
+  {
+   "init": 10,
+   "success": true,
+   "steps": 130,
+   "bowl_lift_cm": 4.5,
+   "bowl_to_plate_cm": 0.5
+  },
+  {
+   "init": 11,
+   "success": true,
+   "steps": 239,
+   "bowl_lift_cm": 4.5,
+   "bowl_to_plate_cm": 3.0
+  },
+  {
+   "init": 12,
+   "success": true,
+   "steps": 126,
+   "bowl_lift_cm": 4.2,
+   "bowl_to_plate_cm": 1.4
+  },
+  {
+   "init": 13,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 4.1,
+   "bowl_to_plate_cm": 11.2
+  },
+  {
+   "init": 14,
+   "success": true,
+   "steps": 103,
+   "bowl_lift_cm": 3.5,
+   "bowl_to_plate_cm": 1.2
+  },
+  {
+   "init": 15,
+   "success": true,
+   "steps": 140,
+   "bowl_lift_cm": 8.0,
+   "bowl_to_plate_cm": 0.8
+  },
+  {
+   "init": 16,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.9,
+   "bowl_to_plate_cm": 11.7
+  },
+  {
+   "init": 17,
+   "success": true,
+   "steps": 129,
+   "bowl_lift_cm": 7.4,
+   "bowl_to_plate_cm": 2.1
+  },
+  {
+   "init": 18,
+   "success": true,
+   "steps": 110,
+   "bowl_lift_cm": 4.2,
+   "bowl_to_plate_cm": 1.9
+  },
+  {
+   "init": 19,
+   "success": true,
+   "steps": 145,
+   "bowl_lift_cm": 8.3,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 20,
+   "success": true,
+   "steps": 110,
+   "bowl_lift_cm": 6.5,
+   "bowl_to_plate_cm": 1.4
+  },
+  {
+   "init": 21,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 3.5
+  },
+  {
+   "init": 22,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 10.4,
+   "bowl_to_plate_cm": 13.9
+  },
+  {
+   "init": 23,
+   "success": true,
+   "steps": 171,
+   "bowl_lift_cm": 10.7,
+   "bowl_to_plate_cm": 2.4
+  },
+  {
+   "init": 24,
+   "success": true,
+   "steps": 115,
+   "bowl_lift_cm": 4.8,
+   "bowl_to_plate_cm": 0.4
+  },
+  {
+   "init": 25,
+   "success": true,
+   "steps": 118,
+   "bowl_lift_cm": 5.3,
+   "bowl_to_plate_cm": 1.0
+  },
+  {
+   "init": 26,
+   "success": true,
+   "steps": 117,
+   "bowl_lift_cm": 6.1,
+   "bowl_to_plate_cm": 1.6
+  },
+  {
+   "init": 27,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 8.4,
+   "bowl_to_plate_cm": 3.3
+  },
+  {
+   "init": 28,
+   "success": true,
+   "steps": 118,
+   "bowl_lift_cm": 5.9,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 29,
+   "success": true,
+   "steps": 125,
+   "bowl_lift_cm": 8.0,
+   "bowl_to_plate_cm": 1.2
+  },
+  {
+   "init": 30,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 4.3,
+   "bowl_to_plate_cm": 18.8
+  },
+  {
+   "init": 31,
+   "success": true,
+   "steps": 124,
+   "bowl_lift_cm": 7.1,
+   "bowl_to_plate_cm": 1.1
+  },
+  {
+   "init": 32,
+   "success": true,
+   "steps": 129,
+   "bowl_lift_cm": 3.5,
+   "bowl_to_plate_cm": 1.1
+  },
+  {
+   "init": 33,
+   "success": true,
+   "steps": 142,
+   "bowl_lift_cm": 8.4,
+   "bowl_to_plate_cm": 3.0
+  },
+  {
+   "init": 34,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 9.6,
+   "bowl_to_plate_cm": 4.7
+  },
+  {
+   "init": 35,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 1.5,
+   "bowl_to_plate_cm": 10.3
+  },
+  {
+   "init": 36,
+   "success": true,
+   "steps": 116,
+   "bowl_lift_cm": 5.5,
+   "bowl_to_plate_cm": 1.1
+  },
+  {
+   "init": 37,
+   "success": true,
+   "steps": 140,
+   "bowl_lift_cm": 6.2,
+   "bowl_to_plate_cm": 2.1
+  },
+  {
+   "init": 38,
+   "success": true,
+   "steps": 121,
+   "bowl_lift_cm": 5.8,
+   "bowl_to_plate_cm": 2.0
+  },
+  {
+   "init": 39,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 4.9,
+   "bowl_to_plate_cm": 9.2
+  },
+  {
+   "init": 40,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 11.0,
+   "bowl_to_plate_cm": 6.0
+  },
+  {
+   "init": 41,
+   "success": true,
+   "steps": 133,
+   "bowl_lift_cm": 5.9,
+   "bowl_to_plate_cm": 1.3
+  },
+  {
+   "init": 42,
+   "success": true,
+   "steps": 117,
+   "bowl_lift_cm": 6.5,
+   "bowl_to_plate_cm": 0.9
+  },
+  {
+   "init": 43,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 4.5,
+   "bowl_to_plate_cm": 13.0
+  },
+  {
+   "init": 44,
+   "success": true,
+   "steps": 129,
+   "bowl_lift_cm": 6.1,
+   "bowl_to_plate_cm": 0.4
+  },
+  {
+   "init": 45,
+   "success": true,
+   "steps": 120,
+   "bowl_lift_cm": 5.1,
+   "bowl_to_plate_cm": 0.8
+  },
+  {
+   "init": 46,
+   "success": true,
+   "steps": 121,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 1.9
+  },
+  {
+   "init": 47,
+   "success": false,
+   "steps": 300,
+   "bowl_lift_cm": 2.3,
+   "bowl_to_plate_cm": 11.6
+  },
+  {
+   "init": 48,
+   "success": true,
+   "steps": 168,
+   "bowl_lift_cm": 6.6,
+   "bowl_to_plate_cm": 1.9
+  },
+  {
+   "init": 49,
+   "success": true,
+   "steps": 123,
+   "bowl_lift_cm": 5.3,
+   "bowl_to_plate_cm": 0.4
+  }
+ ]
+}

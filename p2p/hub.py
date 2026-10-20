@@ -17,13 +17,15 @@ def full_repo_id(repo_id: str) -> str:
     return f"{whoami(token=os.environ.get('HF_TOKEN'))['name']}/{repo_id}"
 
 
-def push(local_dir: str, repo_id: str, path_in_repo: str = "", repo_type: str = "dataset"):
+def push(local_dir: str, repo_id: str, path_in_repo: str = "", repo_type: str = "dataset",
+         ignore_patterns: list[str] | None = None):
     from huggingface_hub import HfApi
 
     api = HfApi(token=os.environ.get("HF_TOKEN"))
     repo_id = full_repo_id(repo_id)
     api.create_repo(repo_id, repo_type=repo_type, private=True, exist_ok=True)
-    api.upload_folder(folder_path=local_dir, repo_id=repo_id, repo_type=repo_type, path_in_repo=path_in_repo or None)
+    api.upload_folder(folder_path=local_dir, repo_id=repo_id, repo_type=repo_type, path_in_repo=path_in_repo or None,
+                      ignore_patterns=ignore_patterns)
 
 
 def pull(repo_id: str, local_dir: str, allow_patterns: list[str] | None = None, repo_type: str = "dataset") -> Path:

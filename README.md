@@ -60,6 +60,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | World model as a plan critic | Colab | `notebooks/07_wm_plan_selection.ipynb` | ~50 min |
 | Test of H2 (consistent grasps) | Colab | `notebooks/08_consistent_grasp.ipynb` | ~2 h |
 | Test of H4 (corrective data, DART) | Colab | `notebooks/09_dart_corrections.ipynb`, once per `VARIANT` | ~3 h each |
+| Test of H7 (training length) | Colab | `notebooks/10_longer_training.ipynb`, once per `VARIANT` | ~5 h each |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -188,6 +189,8 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | ours_mix + IQL advantage weights | 600 | **64%** [54-73] (2 evals, n=100) | 10 | 2 | 7 |
 | ours_mix, unweighted (control) | 600 | **60%** [50-69] (2 evals, n=100) | 15 | 1 | 1 |
 | ours_consistent: 5 demos with grasp sides within 10° (H2 test) | ~250 | **59%** [49-68] (2 evals, n=100) | 8 | 4 | 8 |
+| ours_consistent_clean: same 5 demos, 450 fresh episodes | 450 | **67%** [57-75] (2 evals, n=100) | 7 | 5 | 6 |
+| ours_consistent_dart: same scenes, DART noise during generation | 450 | **64%** [54-73] (2 evals, n=100) | 8 | 4 | 2 |
 
 Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
 follower) succeeds in 85% of these scenes (Table 1).
@@ -221,8 +224,9 @@ explanations and the evidence so far:
 | H1 | **Teacher ceiling.** A student trained by imitation rarely beats its teacher. | Our teacher succeeds in 85% of these scenes; the official demos come from a human teleoperator, presumably near 100%. This explains at most ~15 of the 40 points: our student keeps 57/85 = 67% of its teacher's success, the teleop student 97%. | - |
 | H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Real, but not the main cause.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps.  Direct test (notebook 08, prediction fixed beforehand: >= 70% would confirm H2 as the main cause, <= 60% would reject it): ACT on the 5 demos with grasp sides within 10° reaches **59%** [49-68] (2 evals), the same as `ours_all`. Missed grasps halve (7.5 vs 16 per 50 episodes) and averaging hurts less (32% vs 12%), but placement errors rise (9 vs 1 on the plate > 3 cm off), so the total does not move. | Done (`results/act/ours_consistent_s0/`). |
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
-| H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | After a missed grasp our policy hovers instead of trying again. | Notebook 09: regenerate the 5 consistent demos twice on the same 650 scenes, with and without noise on the executed motion while recording the teacher's corrections (DART, Laskey et al., 2017); prediction fixed in the notebook. |
+| H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | **Not supported by this test.** Notebook 09 regenerated the 5 consistent demos on the same 650 scenes with and without DART noise (executed motion disturbed by a median 8 mm, labels = the teacher's corrections). With 450 episodes each: clean 67% [57-75], DART 64% [54-73] (prediction fixed beforehand: >= +15 points would confirm, <= +5 rejects). Caveat: with action chunks, a frame's 50 future labels include corrections of noise that has not happened yet, which the policy cannot predict; the DART run's training loss ended twice as high (0.24 vs 0.12), so this test is weaker than it looks (see H7). | Re-tested with longer training (notebook 10). |
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
+| H7 | **Under-training.** Every run trains 20k steps. That is ~140 passes over the 49 official demos but only ~12 over our 450 episodes. | Training loss of our runs still falls steadily at 20k steps; larger datasets end at a higher loss; more data helped only a little (250 -> 450 episodes: 59% -> 67%). | Notebook 10: the same datasets trained 60k steps, checkpoints at 20k / 40k / 60k each evaluated twice; prediction fixed beforehand. |
 
 Current reading, after the direct test: **no single cause explains the gap.**
 - H2 is real but not sufficient. Making the grasps consistent removed half of the missed grasps and most of the
@@ -233,11 +237,15 @@ Current reading, after the direct test: **no single cause explains the gap.**
 - The placement errors that appeared are probably a data-size effect: the subset has about half the episodes
   of `ours_all`, and the count-matched `ours_50` showed the same pattern (7 placement failures vs 1). This is a
   post-hoc reading, not tested.
-- H4 (too-clean demonstrations, no corrections in the data) is now the main untested candidate: it would make
-  every grasp and placement fragile, whatever the grasp style. Teleop demos vary where variation teaches
-  robustness (grasp height spread 1.2 cm vs our 0.13 cm). H3 is likely minor; H5 is rejected.
-- Running (notebook 09): the same 5 demos regenerated with 450 episodes each way, clean and with DART noise on
-  the same scenes, so that data size (clean vs notebook 08) and corrective data (DART vs clean) are separated.
+- More data from the consistent demos helps somewhat: 450 episodes reach 67% [57-75] vs 59% with ~250
+  (notebook 09), below the 70% that would have made the placement errors a pure data-size effect.
+- Corrective data (DART) did not help as tested (64% vs 67%). In one failure video the policy carries the bowl
+  onto the plate's rim and then holds it there for the remaining 160 steps: a state the success-filtered data
+  never shows, which is what DART should cover, so the null result is surprising. Its likely weakness:
+  with 50-step action chunks, most labels of a disturbed frame are corrections of noise yet to come.
+- That points at H7: our policies may simply be under-trained for our data size (12 passes over the data,
+  loss still falling), which would also hide the benefit of more data and of DART. Notebook 10 tests this.
+  H3 is likely minor; H5 is rejected.
 
 ### Learning from failures (offline RL, gated)
 
@@ -514,7 +522,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-09
+notebooks/     Colab notebooks 00-10
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README
