@@ -61,6 +61,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Test of H2 (consistent grasps) | Colab | `notebooks/08_consistent_grasp.ipynb` | ~2 h |
 | Test of H4 (corrective data, DART) | Colab | `notebooks/09_dart_corrections.ipynb`, once per `VARIANT` | ~3 h each |
 | Test of H7 (training length) | Colab | `notebooks/10_longer_training.ipynb`, once per `VARIANT` | ~5 h each |
+| Policy behaviour diagnostics | Colab | `notebooks/11_policy_behaviour.ipynb` | ~35 min |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -226,7 +227,8 @@ explanations and the evidence so far:
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
 | H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | **Not supported by this test.** Notebook 09 regenerated the 5 consistent demos on the same 650 scenes with and without DART noise (executed motion disturbed by a median 8 mm, labels = the teacher's corrections). With 450 episodes each: clean 67% [57-75], DART 64% [54-73] (prediction fixed beforehand: >= +15 points would confirm, <= +5 rejects). Caveat: with action chunks, a frame's 50 future labels include corrections of noise that has not happened yet, which the policy cannot predict; the DART run's training loss ended twice as high (0.24 vs 0.12), so this test is weaker than it looks (see H7). | Re-tested with longer training (notebook 10). |
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
-| H7 | **Under-training.** Every run trains 20k steps. That is ~140 passes over the 49 official demos but only ~12 over our 450 episodes. | Training loss of our runs still falls steadily at 20k steps; larger datasets end at a higher loss; more data helped only a little (250 -> 450 episodes: 59% -> 67%). | Notebook 10: the same datasets trained 60k steps, checkpoints at 20k / 40k / 60k each evaluated twice; prediction fixed beforehand. |
+| H7 | **Under-training.** Every run trains 20k steps. That is ~140 passes over the 49 official demos but only ~12 over our 450 episodes. | **Rejected.** Notebook 10 trained the clean 450-episode set 3x longer. The training loss kept falling (L1 0.12 -> 0.07), but success did not rise; it fell: 20k steps 69% [59-77], 40k 61% [51-70], 60k 58% [48-67] (two evaluations each; the 20k checkpoint reproduces notebook 09's 67%). Fitting the demonstrations more closely makes the policy worse in closed loop. | Done (`results/act/ours_consistent_clean_long_s0/`). |
+| H8 | **A teacher that needs precision the policy cannot see.** Our teacher plans from the simulator's exact object positions; if its strategy only works with millimetre accuracy, a policy that sees 128 px images cannot copy it. | **Rejected.** The same plans built from a wrong bowl position still succeed 94% of the time at 2 cm error and 90% at 3 cm; a wrong plate position is tolerated up to 1.5 cm (92%), 70% at 2 cm (`results/act/teacher_tolerance_consistent5.json`). The strategy is not fragile. | Done (`tools/teacher_tolerance.py`). |
 
 Current reading, after the direct test: **no single cause explains the gap.**
 - H2 is real but not sufficient. Making the grasps consistent removed half of the missed grasps and most of the
@@ -243,9 +245,13 @@ Current reading, after the direct test: **no single cause explains the gap.**
   onto the plate's rim and then holds it there for the remaining 160 steps: a state the success-filtered data
   never shows, which is what DART should cover, so the null result is surprising. Its likely weakness:
   with 50-step action chunks, most labels of a disturbed frame are corrections of noise yet to come.
-- That points at H7: our policies may simply be under-trained for our data size (12 passes over the data,
-  loss still falling), which would also hide the benefit of more data and of DART. Notebook 10 tests this.
-  H3 is likely minor; H5 is rejected.
+- Not under-training (H7): training 3x longer fits the data better and the policy gets worse (69% -> 58%).
+- Not a fragile teacher strategy (H8): the teacher tolerates 2-3 cm of error in the bowl's position.
+- What is left is how the policy behaves in closed loop, which success rates do not show. The teacher in the
+  same scenes closes once, 5.1 cm from the bowl's axis and 2.2 cm below the rim, lifts, and releases
+  (`results/act/teacher_behaviour_consistent5.json`). Notebook 11 records the same features for the policies
+  (where they close, how often, whether they release, whether they freeze), for the official, the consistent
+  and the `ours_all` checkpoints. H3 is likely minor; H5 is rejected.
 
 ### Learning from failures (offline RL, gated)
 
@@ -522,7 +528,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-10
+notebooks/     Colab notebooks 00-11
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README

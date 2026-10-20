@@ -1,0 +1,27 @@
+{
+ "success": {
+  "n": 124,
+  "never_closed": 0,
+  "closed_more_than_once": 0,
+  "close_r_cm_median": 5.1,
+  "close_dz_cm_median": -2.2,
+  "close_dz_cm_p10_p90": [
+   -2.3,
+   -2.2
+  ],
+  "lifted": 124,
+  "lifted_and_released": 97,
+  "frozen_last_50_steps_or_more": 0
+ },
+ "failure": {
+  "n": 1,
+  "never_closed": 1,
+  "closed_more_than_once": 0,
+  "close_r_cm_median": null,
+  "close_dz_cm_median": null,
+  "close_dz_cm_p10_p90": null,
+  "lifted": 0,
+  "lifted_and_released": 0,
+  "frozen_last_50_steps_or_more": 0
+ }
+}

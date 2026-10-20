@@ -169,6 +169,7 @@ def set_execution(policy, n_action_steps: int | None = None, temporal_ensemble: 
 def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: int = 128,
              video_dir: str | None = None, n_videos: int = 3, n_action_steps: int | None = None,
              temporal_ensemble: float | None = None) -> dict:
+    from p2p.policy.diagnose import episode_features, summarize
     from p2p.sim.env import TaskEnv
     from p2p.stats import fmt_rate
 
@@ -181,19 +182,23 @@ def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: in
         policy.reset()
         bowl_z0 = env.scene().bowl_pos[2]
         frames, done, success, max_lift = [], False, False, 0.0
+        tr = {"eef": [], "grip": [], "bowl": []}                 # for p2p/policy/diagnose.py
         while not done:
             f = env.frame(size=image_size)
             if video_dir and n < n_videos:
                 frames.append(np.hstack([f["observation.images.image"], f["observation.images.image2"]]))
-            action = post(policy.select_action(pre(to_batch(f))))
-            _, success, done = env.step(action.squeeze(0).float().cpu().numpy())
+            action = post(policy.select_action(pre(to_batch(f)))).squeeze(0).float().cpu().numpy()
+            sc = env.scene()
+            tr["eef"].append(sc.eef_pos), tr["grip"].append(float(action[6])), tr["bowl"].append(sc.bowl_pos)
+            _, success, done = env.step(action)
             max_lift = max(max_lift, env.scene().bowl_pos[2] - bowl_z0)
         sc = env.scene()
         # where the bowl ended, so failures can be sorted like the generated data (tools/failure_modes.py):
         # never lifted / off the plate / on the plate but > 3 cm from its centre (LIBERO's tolerance)
         results.append({"init": int(i), "success": bool(success), "steps": env.t,
                         "bowl_lift_cm": round(100 * float(max_lift), 1),
-                        "bowl_to_plate_cm": round(100 * float(np.linalg.norm(sc.bowl_pos[:2] - sc.plate_pos[:2])), 1)})
+                        "bowl_to_plate_cm": round(100 * float(np.linalg.norm(sc.bowl_pos[:2] - sc.plate_pos[:2])), 1),
+                        **episode_features(np.array(tr["eef"]), np.array(tr["grip"]), np.array(tr["bowl"]))})
         if frames:
             import imageio
 
@@ -202,7 +207,7 @@ def evaluate(ckpt: str, init_ids=range(50), device: str = "cuda", image_size: in
     env.close()
     k = sum(r["success"] for r in results)
     summary = {"checkpoint": str(ckpt), "execution": execution, "success": k, "n": len(results),
-               "rate": fmt_rate(k, len(results)), "episodes": results}
+               "rate": fmt_rate(k, len(results)), "behaviour": summarize(results), "episodes": results}
     print(summary["rate"])
     return summary
 
