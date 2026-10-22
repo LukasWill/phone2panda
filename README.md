@@ -472,9 +472,9 @@ What this suggests as a recipe for learning from human video:
    policy trained on it could not reproduce it: it closed the gripper beside the rim instead of on it.
    The same data with a straight-down approach gave 99%. A demonstration that succeeds when replayed is not
    necessarily one a policy can learn, and only training a policy shows the difference.
-3. **Check that the human's choices suit the robot.** My natural grasp, on the side of the bowl facing me,
-   is one the arm cannot use in this scene (0 of 20 at the worst angle), so the recordings had to follow a
-   simple protocol. One of my carry paths swept through the place where the robot's scene has a cabinet.
+3. **Check that the human's choices suit the robot.** When I grasped naturally, I took the bowl on the side
+   facing me or on my right, sides the arm handles badly in this scene (0 of 20 on the right side), so the
+   recordings had to follow a simple protocol: grasp the left rim. One of my carry paths swept through the place where the robot's scene has a cabinet.
    Human demonstrations carry assumptions about the human's body and room; the simulator catches them, but
    only if every generated episode is checked there.
 4. **Let the simulator multiply and verify.** Ten demonstrations became 438 verified robot episodes, and my
