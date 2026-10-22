@@ -63,6 +63,8 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Test of H7 (training length) | Colab | `notebooks/10_longer_training.ipynb`, once per `VARIANT` | ~5 h each |
 | Policy behaviour diagnostics | Colab | `notebooks/11_policy_behaviour.ipynb` | ~35 min |
 | Test of H9 (planned approach) | Colab | `notebooks/12_planned_approach.ipynb`, once per `VARIANT` | ~3 h each |
+| Planned approach on all 10 demos | Colab | `notebooks/13_all_demos_planned_approach.ipynb` | ~3 h |
+| Second training seed (clean vs planned approach) | Colab | `notebooks/14_second_seed.ipynb`, once per `VARIANT` | ~1.7 h each |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -263,9 +265,10 @@ policy learns from my demos, the grasp point on the rim, the lift, the carry and
   more data probably helped a little because they made the approach less varied; DART (H4) and longer training
   (H7) plausibly could not help because they did not change what the policy had to imitate. These are
   readings after the fact, not tests.
-- **Not yet tested:** whether my full set of 10 demos, with their inconsistent grasp sides, also reaches
-  ~99% once the approach is planned; and a second training seed. One seed per configuration, two evaluations
-  each; the 32-point difference has a 95% interval of about ±9 points.
+- **Running:** whether my full set of 10 demos, with their inconsistent grasp sides, also reaches ~99% once
+  the approach is planned (notebook 13, same seeds as `ours_all`); and a second training seed for both sides of
+  the comparison (notebook 14). So far one seed per configuration, two evaluations each; the 32-point
+  difference has a 95% interval of about ±9 points.
 
 ### Learning from failures (offline RL, gated)
 
@@ -562,7 +565,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-12
+notebooks/     Colab notebooks 00-14
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README
