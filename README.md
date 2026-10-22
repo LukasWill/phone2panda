@@ -62,6 +62,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Test of H4 (corrective data, DART) | Colab | `notebooks/09_dart_corrections.ipynb`, once per `VARIANT` | ~3 h each |
 | Test of H7 (training length) | Colab | `notebooks/10_longer_training.ipynb`, once per `VARIANT` | ~5 h each |
 | Policy behaviour diagnostics | Colab | `notebooks/11_policy_behaviour.ipynb` | ~35 min |
+| Test of H9 (planned approach) | Colab | `notebooks/12_planned_approach.ipynb`, once per `VARIANT` | ~3 h each |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -200,8 +201,8 @@ follower) succeeds in 85% of these scenes (Table 1).
   grasp, it places about as accurately as the teleop policy (median 1.9 vs 1.1 cm from the plate centre).
 - **9x more generated data: 46% -> 57%**, not significant. It seems to sharpen placement (7 vs 1
   off-centre failures) but not grasping.
-- **No recovery behaviour:** after a missed grasp the policy hovers over the plate. The success-filtered data
-  contains no recoveries.
+- **Re-grasps, but in the wrong place:** after a missed grasp the policy closes again (3-7 times per failed
+  episode, notebook 11), each time too far out from the bowl's centre.
 - **How the policy executes its predictions matters for our data, not for teleop data** (same checkpoints,
   only the execution changed; `results/act/*/eval_n10.json`, `eval_te.json`):
 
@@ -229,6 +230,7 @@ explanations and the evidence so far:
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
 | H7 | **Under-training.** Every run trains 20k steps. That is ~140 passes over the 49 official demos but only ~12 over our 450 episodes. | **Rejected.** Notebook 10 trained the clean 450-episode set 3x longer. The training loss kept falling (L1 0.12 -> 0.07), but success did not rise; it fell: 20k steps 69% [59-77], 40k 61% [51-70], 60k 58% [48-67] (two evaluations each; the 20k checkpoint reproduces notebook 09's 67%). Fitting the demonstrations more closely makes the policy worse in closed loop. | Done (`results/act/ours_consistent_clean_long_s0/`). |
 | H8 | **A teacher that needs precision the policy cannot see.** Our teacher plans from the simulator's exact object positions; if its strategy only works with millimetre accuracy, a policy that sees 128 px images cannot copy it. | **Rejected.** The same plans built from a wrong bowl position still succeed 94% of the time at 2 cm error and 90% at 3 cm; a wrong plate position is tolerated up to 1.5 cm (92%), 70% at 2 cm (`results/act/teacher_tolerance_consistent5.json`). The strategy is not fragile. | Done (`tools/teacher_tolerance.py`). |
+| H9 | **The demonstrated approach.** The object-relative teacher reaches the rim along the last 15 cm of my hand's path, bent to end at the grasp and skimming just above the rim; when it closes varies by episode (spread 24 steps). The teleop policy comes down onto the rim and closes at an almost fixed moment (spread 2.5 steps). | **Supported by the behaviour data (notebook 11).** Where the gripper first closes, as distance from the bowl's axis (rim at 5.6 cm): teacher 5.1 cm; official policy 4.6 cm (10th-90th percentile 3.3-5.3) in successes; our consistent policy 5.5 cm in successes but 7.1 cm (5.5-10.9) in failures, after which it closes again 3-7 times without lifting. Grasp height is right in both (about 2 cm below the rim). So our policy re-tries but misplaces the grasp horizontally (`results/behaviour/`). The same plans with a straight-down approach: teacher 99%, closes at 4.4 cm, spread 1.2 steps (`results/behaviour/teacher_variants.json`). | Notebook 12: same scenes and seeds as notebook 09, approach planned straight down (`vertical`), and the fully scripted `intent` motion as the pipeline's ceiling; prediction fixed beforehand. |
 
 Current reading, after the direct test: **no single cause explains the gap.**
 - H2 is real but not sufficient. Making the grasps consistent removed half of the missed grasps and most of the
@@ -247,11 +249,13 @@ Current reading, after the direct test: **no single cause explains the gap.**
   with 50-step action chunks, most labels of a disturbed frame are corrections of noise yet to come.
 - Not under-training (H7): training 3x longer fits the data better and the policy gets worse (69% -> 58%).
 - Not a fragile teacher strategy (H8): the teacher tolerates 2-3 cm of error in the bowl's position.
-- What is left is how the policy behaves in closed loop, which success rates do not show. The teacher in the
-  same scenes closes once, 5.1 cm from the bowl's axis and 2.2 cm below the rim, lifts, and releases
-  (`results/act/teacher_behaviour_consistent5.json`). Notebook 11 records the same features for the policies
-  (where they close, how often, whether they release, whether they freeze), for the official, the consistent
-  and the `ours_all` checkpoints. H3 is likely minor; H5 is rejected.
+- How the policy fails (notebook 11, behaviour recorded per step): not by giving up and not at the wrong height,
+  but by closing in the wrong place. In failed episodes it first closes 7-8 cm from the bowl's axis, outside the
+  rim, then tries again 3-7 times and misses each time. The official policy closes 1 cm inside the rim. The
+  earlier note "no recovery behaviour" was too strong: our policy does re-grasp, it re-grasps in the wrong place.
+- That points at the one part of my motion the teacher copies most literally near the bowl: the approach (H9).
+  Notebook 12 replaces only the approach with a straight-down descent, on the same scenes. H3 is likely minor;
+  H5, H7 and H8 are rejected.
 
 ### Learning from failures (offline RL, gated)
 
@@ -528,7 +532,7 @@ p2p/data/      sim-verified data generation, LeRobot dataset I/O
 p2p/policy/    ACT training and evaluation (with per-sample weights)
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
-notebooks/     Colab notebooks 00-11
+notebooks/     Colab notebooks 00-12
 tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
                yield estimate, demo consistency, nominal arm model fit
 results/       every number in this README

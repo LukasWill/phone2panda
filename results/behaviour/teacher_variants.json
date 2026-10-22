@@ -1,0 +1,4 @@
+{"note": "Scripted teacher in the evaluation scenes (5 consistent demos x 25 scenes, physics only, unperturbed): success, and for successes the median steps, first-close step, distance of the gripper from the bowl's axis at the first close (rim at 5.6 cm) and height relative to the rim; close_step_std = spread of the closing moment.",
+ "object_relative (my approach)":          {"success": 0.952, "steps": 118, "close_step": 61, "close_step_std": 24.5, "close_r_cm": 5.1, "close_dz_cm": -2.2},
+ "object_relative_vertical (planned approach)": {"success": 0.992, "steps": 105, "close_step": 45, "close_step_std": 1.2, "close_r_cm": 4.4, "close_dz_cm": -2.2},
+ "intent (scripted motion)":              {"success": 1.000, "steps": 118, "close_step": 47, "close_step_std": 1.2, "close_r_cm": 5.0, "close_dz_cm": -2.3}}

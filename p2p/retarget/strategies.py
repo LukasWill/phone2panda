@@ -99,7 +99,10 @@ def plan_intent(demo: dict, s: Scene) -> list[Waypoint]:
     return plan_bowl_to_plate(s, rim_angle=float(np.arctan2(radial[1], radial[0])), place_offset=place_off)
 
 
-def plan_object_relative(demo: dict, s: Scene) -> list[Waypoint]:
+def plan_object_relative(demo: dict, s: Scene, approach: str = "human") -> list[Waypoint]:
+    """approach="human": the last 15 cm of my reach, bent to end at the grasp (skims over the rim).
+    approach="vertical": everything else from my demo, but the gripper comes down straight from 8 cm above the
+    grasp point, like the intent plan (diagnostic: is the demonstrated approach what the policy cannot copy?)."""
     P, ev = smooth_path(demo["pinch"]), demo["events"]
     _, k_grasp, k_lift, k_down, k_release, k_end = ev
     b_h, b_s = demo["bowl_start"], s.bowl_pos
@@ -120,7 +123,7 @@ def plan_object_relative(demo: dict, s: Scene) -> list[Waypoint]:
 
     # approach: the last part of your reach (within 15 cm of the bowl), bent so it ends exactly at `grasp`
     ks = [k for k in _keyframes(demo, 0, k_grasp) if np.linalg.norm(P[k, :2] - b_h[:2]) < 0.15]
-    approach = [in_bowl_frame(P[k]) for k in ks]
+    approach = [in_bowl_frame(P[k]) for k in ks] if approach == "human" else []
     if approach:
         err = grasp - in_bowl_frame(P[k_grasp]) if np.isfinite(P[k_grasp, 0]) else grasp - approach[-1]
         n = len(approach)
@@ -191,6 +194,8 @@ def make_plan(strategy: str, demo: dict, s: Scene, abs_offset: np.ndarray | None
         return plan_intent(demo, s)
     if strategy == "object_relative":
         return plan_object_relative(demo, s)
+    if strategy == "object_relative_vertical":
+        return plan_object_relative(demo, s, approach="vertical")
     if strategy == "absolute":
         return plan_absolute(demo, s, abs_offset)
     raise ValueError(strategy)
