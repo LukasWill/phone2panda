@@ -456,19 +456,39 @@ choice (`results/plan_select/`):
 
 ## Main takeaway
 
-**From a human video, transfer what happens at contact and plan the free motion.** A phone recording of my hand
-gives the robot what it cannot easily invent: where to grasp the rim, how to carry, where to set the bowl down.
-Copying how my hand got to the bowl gives it something it can execute (95%) but a policy cannot learn (67%);
-planning that approach and keeping the rest gives 99%, on par with 49 teleoperated demos (97%). Executability,
-which the simulator checks, is not learnability, which only training a policy reveals.
+A phone video of a human hand is a good source of robot data, but not as a trajectory to copy. What it
+contains that a robot cannot easily work out on its own is the intent at contact: where to take hold of the
+object, how to carry it, and where to put it down. How the hand travelled through free space is the part to
+leave behind. In this project, robots trained on data that copied my whole motion succeeded 57-67% of the
+time; keeping my grasp point, carry and place point but planning the approach to the bowl raised that to 99%,
+as good as a policy trained on 49 teleoperated demonstrations (97%).
 
-Two lessons about the method, from getting there:
-- **Success rates did not find the cause; behaviour did.** Six experiments measured success rates and ruled out
-  plausible causes (teacher quality, data size, corrective data, training length, teacher precision,
-  execution). Recording where and how often the gripper closes (notebook 11) located the failure in one run.
-- **Decide what would count before running.** A 50-episode evaluation of the same checkpoint moved by 12
-  points between runs. The thresholds fixed in each notebook before running kept two attractive results,
-  offline RL's +12 points and the grasp-consistency explanation, from being reported as findings.
+What this suggests as a recipe for learning from human video:
+
+1. **Express the demonstration relative to the objects, not the room.** Replaying my hand path in fixed
+   coordinates never worked (0%), because no two of my recordings had the bowl and plate in the same place.
+   Anchoring the same path on the bowl and the plate worked 81% of the time without any other change.
+2. **Take the contact, plan the free motion.** The robot could execute my approach to the bowl (95%), but a
+   policy trained on it could not reproduce it: it closed the gripper beside the rim instead of on it.
+   The same data with a straight-down approach gave 99%. A demonstration that succeeds when replayed is not
+   necessarily one a policy can learn, and only training a policy shows the difference.
+3. **Check that the human's choices suit the robot.** My natural grasp, on the side of the bowl facing me,
+   is one the arm cannot use in this scene (0 of 20 at the worst angle), so the recordings had to follow a
+   simple protocol. One of my carry paths swept through the place where the robot's scene has a cabinet.
+   Human demonstrations carry assumptions about the human's body and room; the simulator catches them, but
+   only if every generated episode is checked there.
+4. **Let the simulator multiply and verify.** Ten demonstrations became 438 verified robot episodes, and my
+   per-demo predictions of how many would succeed held. This is what makes a handful of phone recordings
+   enough; it does not make bad data good. Nine times more data of the copied kind moved the policy only from
+   46% to 57%.
+5. **Fix what the policy imitates before tuning how it learns.** Learning from the failed rollouts with a
+   critic, injecting corrective noise into the demonstrations, and training three times longer all left the
+   policy where it was or made it worse. None of them changed the motion the policy had to copy; changing
+   that motion closed the gap.
+6. **Measure contact geometrically, not from the hand tracker.** At the moment of grasping, the fingers are
+   hidden behind the rim and hand tracking is least reliable. The grasp point came from the camera ray
+   through the pinch intersected with the rim's plane, and the metric frame from printed tags; 6 of 25
+   recordings still had to be dropped because the hand was never visible at the grasp.
 
 ## Takeaways: when do offline RL and the world model help?
 
