@@ -69,6 +69,18 @@ def _keyframes(demo: dict, k0: int, k1: int, dt: float = 0.12) -> list[int]:
     return ks
 
 
+APPROACH_POINTS, APPROACH_STEP_TIME = 8, 4      # fixed-pace approach: 8 points x 4 steps = 1.6 s
+
+
+def resample_by_length(P: np.ndarray, n: int) -> list[np.ndarray]:
+    """n points evenly spaced along the polyline P (first and last point kept)."""
+    if len(P) < 2:
+        return [p for p in P]
+    d = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+    u = np.linspace(0, d[-1], n)
+    return [np.array([np.interp(t, d, P[:, i]) for i in range(P.shape[1])]) for t in u]
+
+
 def _path_waypoints(points, yaw, gripper, tol=0.03, timeout=12, name="path"):
     return [Waypoint(np.asarray(p), yaw, gripper, tol=tol, timeout=timeout, name=name) for p in points]
 
@@ -102,7 +114,11 @@ def plan_intent(demo: dict, s: Scene) -> list[Waypoint]:
 def plan_object_relative(demo: dict, s: Scene, approach: str = "human") -> list[Waypoint]:
     """approach="human": the last 15 cm of my reach, bent to end at the grasp (skims over the rim).
     approach="vertical": everything else from my demo, but the gripper comes down straight from 8 cm above the
-    grasp point, like the intent plan (diagnostic: is the demonstrated approach what the policy cannot copy?)."""
+    grasp point, like the intent plan (diagnostic: is the demonstrated approach what the policy cannot copy?).
+    approach="human_timed": the same path as "human", but walked at a fixed pace: resampled to APPROACH_POINTS
+    points evenly spaced along its length, one every APPROACH_STEP_TIME control steps, advancing on time rather
+    than on arrival, so it takes the same time in every demo and scene (diagnostic: is it the path's shape or
+    its variable timing that a policy cannot learn?)."""
     P, ev = smooth_path(demo["pinch"]), demo["events"]
     _, k_grasp, k_lift, k_down, k_release, k_end = ev
     b_h, b_s = demo["bowl_start"], s.bowl_pos
@@ -123,16 +139,22 @@ def plan_object_relative(demo: dict, s: Scene, approach: str = "human") -> list[
 
     # approach: the last part of your reach (within 15 cm of the bowl), bent so it ends exactly at `grasp`
     ks = [k for k in _keyframes(demo, 0, k_grasp) if np.linalg.norm(P[k, :2] - b_h[:2]) < 0.15]
-    approach = [in_bowl_frame(P[k]) for k in ks] if approach == "human" else []
+    mode, approach = approach, ([in_bowl_frame(P[k]) for k in ks] if approach in ("human", "human_timed") else [])
     if approach:
         err = grasp - in_bowl_frame(P[k_grasp]) if np.isfinite(P[k_grasp, 0]) else grasp - approach[-1]
         n = len(approach)
         approach = [a + err * (j + 1) / n for j, a in enumerate(approach)]
         approach = [np.maximum(a, [-np.inf, -np.inf, rim_s + 0.01]) for a in approach]   # stay above the rim until the final descent
+        if mode == "human_timed":
+            approach = resample_by_length(np.array(approach), APPROACH_POINTS)
     pre = grasp + np.array([0, 0, 0.08])
     wps = [Waypoint(pre, yaw, GRIPPER_OPEN, tol=0.02, name="pre-grasp")] if not approach else \
           [Waypoint(approach[0] + np.array([0, 0, 0.05]), yaw, GRIPPER_OPEN, tol=0.02, name="pre-approach")]
-    wps += _path_waypoints(approach, yaw, GRIPPER_OPEN, name="approach")
+    if mode == "human_timed":     # tol 0: never "reached"; the timeout advances it after a fixed time
+        wps += [Waypoint(np.asarray(p), yaw, GRIPPER_OPEN, tol=0.0, timeout=APPROACH_STEP_TIME - 1, name="approach")
+                for p in approach]
+    else:
+        wps += _path_waypoints(approach, yaw, GRIPPER_OPEN, name="approach")
 
     # carry: endpoints re-anchored on the bowl (start) and the plate (end); the path's deviation from its
     # own straight line (mainly the lift) is added back on top. The carry follows the BOWL track, not the
@@ -196,6 +218,8 @@ def make_plan(strategy: str, demo: dict, s: Scene, abs_offset: np.ndarray | None
         return plan_object_relative(demo, s)
     if strategy == "object_relative_vertical":
         return plan_object_relative(demo, s, approach="vertical")
+    if strategy == "object_relative_timed":
+        return plan_object_relative(demo, s, approach="human_timed")
     if strategy == "absolute":
         return plan_absolute(demo, s, abs_offset)
     raise ValueError(strategy)
