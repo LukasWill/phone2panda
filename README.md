@@ -10,7 +10,7 @@ action-conditioned **world model** that predicts the camera view and whether a p
 | Question | Result (95% Wilson intervals; LIBERO's 50 fixed evaluation scenes, never used for data) |
 |---|---|
 | Q1: How should a human demo be retargeted? | Intent-only 100%, object-relative 81%, absolute replay 0% (13 demos x 20 scenes each) |
-| Q2: How good is a policy trained only on my phone demos? | Copying my whole motion: ACT 57% [47-66] (438 sim-verified episodes from 10 demos) vs 97% [92-99] on 49 official teleop demos. **Copying my grasp point, carry and place point but planning the approach to the bowl: 99% [95-100]** (450 episodes from 5 demos) |
+| Q2: How good is a policy trained only on my phone demos? | Copying my whole motion: ACT 57% [47-66] (438 sim-verified episodes from 10 demos) vs 97% [92-99] on 49 official teleop demos. **Copying my grasp point, carry and place point but planning the approach to the bowl: 98% [93-99]** on the same 10 demos and scenes (438 episodes); 98% [94-99] vs 66% [60-73] in a controlled 5-demo comparison over two training seeds |
 | Q2b: Does learning from failures help? | Not measurably. All 600 rollouts weighted by an IQL critic: 64% [54-73]; the same data unweighted: 60% [50-69]; successes only: 57% [47-66] (2 evals each, n=100). A first single evaluation suggested +12 points; re-evaluation showed it was mostly evaluation noise |
 | Q3: Can a world model judge a plan before execution? | Given a plan's executed actions: success AUROC 0.93 imagining whole held-out episodes from their first frame (within one strategy), and it ranks the 3 strategies correctly. Choosing among 13 candidate plans before acting: 78%, vs 71% random and 98% for always using the most reliable demo |
 
@@ -200,6 +200,9 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | ours_consistent_dart: same scenes, DART noise during generation | 450 | **64%** [54-73] (2 evals, n=100) | 8 | 4 | 2 |
 | **ours_consistent_vertical: same scenes, approach planned straight down (H9 test)** | 450 | **99%** [95-100] (2 evals, n=100) | 0 | 1 | 0 |
 | ours_consistent_intent: same scenes, fully scripted motion (pipeline ceiling) | 450 | **100%** [96-100] (2 evals, n=100) | 0 | 0 | 0 |
+| ours_consistent_clean, training seed 1 | 450 | **66%** [56-75] (2 evals, n=100) | 10 | 5 | 5 |
+| ours_consistent_vertical, training seed 1 | 450 | **96%** [90-98] (2 evals, n=100) | 0 | 2 | 2 |
+| **ours_all_vertical: all 10 demos, `ours_all`'s scenes, approach planned** | 438 | **98%** [93-99] (2 evals, n=100) | 0 | 0 | 0 |
 
 Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
 follower) succeeds in 85% of these scenes (Table 1).
@@ -233,7 +236,7 @@ explanations and the evidence so far:
 | | Hypothesis | Evidence so far | Test |
 |---|---|---|---|
 | H1 | **Teacher ceiling.** A student trained by imitation rarely beats its teacher. | Our teacher succeeds in 85% of these scenes; the official demos come from a human teleoperator, presumably near 100%. This explains at most ~15 of the 40 points: our student keeps 57/85 = 67% of its teacher's success, the teleop student 97%. | - |
-| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Real, but not the main cause.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps.  Direct test (notebook 08, prediction fixed beforehand: >= 70% would confirm H2 as the main cause, <= 60% would reject it): ACT on the 5 demos with grasp sides within 10° reaches **59%** [49-68] (2 evals), the same as `ours_all`. Missed grasps halve (7.5 vs 16 per 50 episodes) and averaging hurts less (32% vs 12%), but placement errors rise (9 vs 1 on the plate > 3 cm off), so the total does not move. | Done (`results/act/ours_consistent_s0/`). |
+| H2 | **Inconsistent grasps across demos.** In similar-looking scenes my 10 demos grasp different points of the rim (86-149°, so the wrist angle differs by up to 60°) and approach along 10 different paths. The image does not tell which demo to follow, so the policy may average them, and an average of two good rim grasps can be a grasp that matches neither. | **Real, but not the main cause.** Wrist angle at the moment of grasping, across episodes: teleop spread 5.6° (10th-90th percentile -12° to 1°), ours 21.3° (-8° to 51°), four times wider (`results/act/demo_consistency.jsonl`). Averaging the policy's own successive predictions (temporal ensembling) drops ours to 12%, mostly missed grasps, but leaves teleop at 100%: its predictions agree with each other, ours switch between grasps. Missed grasps dominate the failures; 9x more data of the same kind barely helps.  Direct test (notebook 08, prediction fixed beforehand: >= 70% would confirm H2 as the main cause, <= 60% would reject it): ACT on the 5 demos with grasp sides within 10° reaches **59%** [49-68] (2 evals), the same as `ours_all`. Missed grasps halve (7.5 vs 16 per 50 episodes) and averaging hurts less (32% vs 12%), but placement errors rise (9 vs 1 on the plate > 3 cm off), so the total does not move. Notebook 13 settles it: with the approach planned, all 10 demos (inconsistent grasp sides) reach 98% [93-99]. | Done (`results/act/ours_consistent_s0/`, `results/act/ours_all_vertical_s0/`). |
 | H3 | **The ±1 cm grasp perturbation** of data generation adds variety where the gripper closes. | Probably minor. Only perturbed rollouts that succeeded are kept, and the added spread (about 11° around the rim) is small next to the spread across my demos (about 20°): together about 23°. | Regenerate with `--grasp-sigma 0` and retrain. |
 | H4 | **Too-clean demonstrations.** Scripted rollouts follow their plan almost perfectly, so the data never shows how to correct a small error. Teleoperators correct themselves all the time, which shows the policy how to recover. Once our policy is a few mm off, it is in states it has never seen. | **Not supported by this test.** Notebook 09 regenerated the 5 consistent demos on the same 650 scenes with and without DART noise (executed motion disturbed by a median 8 mm, labels = the teacher's corrections). With 450 episodes each: clean 67% [57-75], DART 64% [54-73] (prediction fixed beforehand: >= +15 points would confirm, <= +5 rejects). Caveat: with action chunks, a frame's 50 future labels include corrections of noise that has not happened yet, which the policy cannot predict; the DART run's training loss ended twice as high (0.24 vs 0.12), so this test is weaker than it looks (see H7). | Re-tested with longer training (notebook 10). |
 | H5 | **Open-loop chunks during a precise grasp.** ACT predicts 50 actions and executes 25 of them (1.25 s) before looking again, so an error in the chunk's grasp position is not corrected before the fingers close. Our policy also needs about twice as many steps (median 136 vs 74 to succeed), hence more chunks. | **Rejected.** Executing 10 instead of 25 actions per prediction gives 50% (vs 57%), re-predicting every step 12%. Committing to one chunk is what keeps our policy on one grasp; looking more often only gives it more chances to switch. | - |
@@ -243,14 +246,18 @@ explanations and the evidence so far:
 
 **Conclusion: the gap comes from copying my approach to the bowl.** In a controlled comparison (same demos,
 scenes, perturbations, dataset size and training), planning the last few centimetres before the grasp instead
-of copying them raises the policy from 67% to 99%, the level of the teleop policy (97%). Everything else the
-policy learns from my demos, the grasp point on the rim, the lift, the carry and the place point, transfers.
+of copying them raises the policy from 66% to 98% (two training seeds, two evaluations each), the level of the
+teleop policy (97%). Everything else the policy learns from my demos, the grasp point on the rim, the lift, the
+carry and the place point, transfers. With all 10 of my training demos, on exactly the scenes of `ours_all`,
+the planned approach gives 98% where copying my approach gave 57%.
 
-| | Teacher in these scenes | Policy | Policy closes (from the bowl's axis) |
-|---|---|---|---|
-| my approach (object-relative) | 95% | 67% [57-75] | 5.5 cm in successes, 7.1 cm in failures |
-| approach planned straight down | 99% | **99%** [95-100] | 4.3-4.4 cm |
-| fully scripted (intent) | 100% | 100% [96-100] | 5.0-5.4 cm |
+| | Teacher in these scenes | Policy, seed 0 | Policy, seed 1 | Policy closes (from the bowl's axis) |
+|---|---|---|---|---|
+| my approach (object-relative), 5 demos | 95% | 67% [57-75] | 66% [56-75] | 5.5 cm in successes, 7.1 cm in failures |
+| approach planned straight down, 5 demos | 99% | **99%** [95-100] | **96%** [90-98] | 4.2-4.4 cm |
+| fully scripted (intent), 5 demos | 100% | 100% [96-100] | - | 5.0-5.4 cm |
+| my approach, all 10 demos (`ours_all`) | 83% | 57% [47-66] | - | 5.4 cm in successes, 7.7 cm in failures |
+| approach planned straight down, all 10 demos | 91% | **98%** [93-99] | - | 3.9 cm |
 
 - **A demonstration the robot can execute is not necessarily one a policy can learn.** The teacher with my
   approach succeeds 95% of the time, so H1 (teacher ceiling) explains only ~4 of the 32 points. The rest is
@@ -265,10 +272,11 @@ policy learns from my demos, the grasp point on the rim, the lift, the carry and
   more data probably helped a little because they made the approach less varied; DART (H4) and longer training
   (H7) plausibly could not help because they did not change what the policy had to imitate. These are
   readings after the fact, not tests.
-- **Running:** whether my full set of 10 demos, with their inconsistent grasp sides, also reaches ~99% once
-  the approach is planned (notebook 13, same seeds as `ours_all`); and a second training seed for both sides of
-  the comparison (notebook 14). So far one seed per configuration, two evaluations each; the 32-point
-  difference has a 95% interval of about ±9 points.
+- **Inconsistent grasp sides stop mattering once the approach is planned** (notebook 13, prediction fixed
+  beforehand: >= 90% means no extra cost). My 10 demos grasp the rim anywhere between 86° and 149° and still
+  give 98%, as the 5 consistent demos do. H2 was a symptom of the copied approach, not a separate cause.
+- **The difference replicates across training seeds** (notebook 14, prediction: planned >= 90%, copied
+  <= 75%): seed 1 gives 96% vs 66%. Pooled over both seeds, 98% [94-99] vs 66% [60-73], n = 200 each.
 
 ### Learning from failures (offline RL, gated)
 
@@ -460,8 +468,9 @@ A phone video of a human hand is a good source of robot data, but not as a traje
 contains that a robot cannot easily work out on its own is the intent at contact: where to take hold of the
 object, how to carry it, and where to put it down. How the hand travelled through free space is the part to
 leave behind. In this project, robots trained on data that copied my whole motion succeeded 57-67% of the
-time; keeping my grasp point, carry and place point but planning the approach to the bowl raised that to 99%,
-as good as a policy trained on 49 teleoperated demonstrations (97%).
+time; keeping my grasp point, carry and place point but planning the approach to the bowl raised that to 98%
+(with all 10 demos, and over two training seeds in a controlled comparison), as good as a policy trained on 49
+teleoperated demonstrations (97%).
 
 What this suggests as a recipe for learning from human video:
 
@@ -470,7 +479,8 @@ What this suggests as a recipe for learning from human video:
    Anchoring the same path on the bowl and the plate worked 81% of the time without any other change.
 2. **Take the contact, plan the free motion.** The robot could execute my approach to the bowl (95%), but a
    policy trained on it could not reproduce it: it closed the gripper beside the rim instead of on it.
-   The same data with a straight-down approach gave 99%. A demonstration that succeeds when replayed is not
+   The same data with a straight-down approach gave 98%. Once the approach was planned, it no longer mattered
+   that my demos grasp the rim at very different places (86-149° around the bowl). A demonstration that succeeds when replayed is not
    necessarily one a policy can learn, and only training a policy shows the difference.
 3. **Check that the human's choices suit the robot.** When I grasped naturally, I took the bowl on the side
    facing me or on my right, sides the arm handles badly in this scene (0 of 20 on the right side), so the
