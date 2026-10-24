@@ -272,6 +272,32 @@ the planned approach gives 98% where copying my approach gave 57%.
   the fingers close (0.7 cm further inside the rim, more margin). Any of them could matter. Notebook 15 keeps
   the shape of my approach but walks it at a fixed pace, which also moves the grasp to 4.4 cm: it separates the
   path's shape from how it is executed (timing and margin together).
+
+  ![path shape vs execution](assets/approach_shape_vs_execution.png)
+
+  *Top: **path shape**, the places the gripper passes through, for one demo in one scene (side view). My copied
+  approach comes in sideways about 1 cm above the rim, then goes down; the planned one comes straight down. The
+  fixed-pace version follows my path to its end and so closes further in. (The fingers open about 8 cm, which is
+  why closing a little outside the rim can still catch the wall.) Bottom: **execution**, when the gripper gets
+  to its grasp point, for 5 demos x 3 scenes. My copied approach arrives at a different moment for each demo
+  (and once got stuck); the fixed pace narrows that; the planned approach arrives at the same moment every
+  time. Teacher rollouts, physics only (`tools/approach_figure_*.py`).*
+- **Is planning the approach a cheat?** No, but it limits the claim. The planner uses the same information as
+  the copied version (my grasp point and the bowl's position) plus one rule: start 8 cm above the grasp point
+  and go straight down. There is no search and no learning. The catch is elsewhere: the fully scripted run,
+  which keeps only my grasp side and place point, also reaches 100%, so on this task what my demo adds beyond
+  a script is a few numbers. The task is too easy to show the human's real value, which should appear where the
+  contact itself is hard to write down by hand: unfamiliar objects, unusual grasps, specific placements.
+- **How far the split generalises.** "Contact from the human, free motion from a planner" fits tasks where the
+  space around the object is open, as on a tabletop. Where the approach is itself the hard part (reaching into
+  a drawer, inserting, working around clutter), a straight line is not enough: the planner needs a model of the
+  scene, and the human's path may be the informative part. Published work makes the same split. VRB (Bahl et
+  al., 2023) learns from human videos only where a hand touches an object and how it moves right after contact.
+  SkillMimicGen (Garrett et al., 2024) generates robot data by adapting only the object-interaction segments of
+  demonstrations and connecting them with free-space motion (motion-planned in its Isaac Lab implementation).
+  MimicGen, which this project follows, still copies each segment's approach relative to the object, which
+  works for its teleoperated source demos; for human demos, notebook 12 shows the approach is the part not
+  to copy.
 - **Earlier findings, reread.** The collapse under averaging (H2's main evidence) belonged to the approach:
   with the planned approach, averaging costs 7 points, against 27-45 before. Consistent grasp sides (H2) and
   more data probably helped a little because they made the approach less varied; DART (H4) and longer training
@@ -588,7 +614,10 @@ LIBERO (Liu et al., 2023); IQL (Kostrikov et al., 2021) and advantage-weighted r
 DART (Laskey et al., 2017) for noise injection against covariate shift in imitation;
 world models in the Dreamer line (Hafner et al.). Learning manipulation from human video: DexMV (Qin et al.,
 2022), MimicPlay (Wang et al., 2023), EgoMimic (Kareer et al., 2024); Real2Render2Real (Yu et al., 2025) also
-turns phone captures of a human demo into many robot demos.
+turns phone captures of a human demo into many robot demos. VRB (Bahl et al., 2023) learns contact points and
+post-contact trajectories from human videos; SkillMimicGen (Garrett et al., 2024) adapts only the
+object-interaction segments of demonstrations and connects them with free-space motion: both make the split
+between contact and free motion that notebook 12 found necessary.
 
 ## Layout
 
