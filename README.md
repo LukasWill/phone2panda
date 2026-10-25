@@ -262,6 +262,18 @@ the planned approach gives 98% where copying my approach gave 57%.
 | approach planned straight down, all 10 demos | 91% | **98%** [93-99] | - | 3.9 cm |
 | my approach's path at a fixed pace, 5 demos | 98% | 82% [73-88] | - | 5.0 cm in successes, 6-9 cm in failures |
 
+<a id="approach-figure"></a>
+![path shape vs execution](assets/approach_shape_vs_execution.png)
+
+*What "my approach", "fixed pace" and "planned" mean (scripted teacher, physics only; `tools/approach_figure_*.py`).
+Top: **path shape**, the places the gripper passes through, for one demo in one scene, seen from the side. My
+copied approach comes in sideways about 1 cm above the rim, then goes down; the planned one comes straight
+down; the fixed-pace version follows my path to its end and so closes further in. (The fingers open about 8 cm,
+which is why closing a little outside the rim can still catch the wall.) Bottom: **execution**, when the
+gripper reaches its grasp point, for 5 demos x 3 scenes. My copied approach arrives at a different moment for
+each demo (and once got stuck); the fixed pace narrows that; the planned approach arrives at the same moment
+every time.*
+
 - **A demonstration the robot can execute is not necessarily one a policy can learn.** The teacher with my
   approach succeeds 95% of the time, so H1 (teacher ceiling) explains only ~4 of the 32 points. The rest is
   lost in imitation. My approach comes from the last 15 cm of my hand's path: it reaches the rim sideways,
@@ -280,15 +292,6 @@ the planned approach gives 98% where copying my approach gave 57%.
   pace, a sideways path just above the rim leaves the policy unsure when and where to close; coming straight
   down removes that. Timing and margin remain confounded with each other.
 
-  ![path shape vs execution](assets/approach_shape_vs_execution.png)
-
-  *Top: **path shape**, the places the gripper passes through, for one demo in one scene (side view). My copied
-  approach comes in sideways about 1 cm above the rim, then goes down; the planned one comes straight down. The
-  fixed-pace version follows my path to its end and so closes further in. (The fingers open about 8 cm, which is
-  why closing a little outside the rim can still catch the wall.) Bottom: **execution**, when the gripper gets
-  to its grasp point, for 5 demos x 3 scenes. My copied approach arrives at a different moment for each demo
-  (and once got stuck); the fixed pace narrows that; the planned approach arrives at the same moment every
-  time. Teacher rollouts, physics only (`tools/approach_figure_*.py`).*
 - **Is planning the approach a cheat?** No, but it limits the claim. The planner uses the same information as
   the copied version (my grasp point and the bowl's position) plus one rule: start 8 cm above the grasp point
   and go straight down. There is no search and no learning. The catch is elsewhere: the fully scripted run,
@@ -519,9 +522,9 @@ What this suggests as a recipe for learning from human video:
    policy trained on it could not reproduce it: it closed the gripper beside the rim instead of on it.
    The same data with a straight-down approach gave 98%. Once the approach was planned, it no longer mattered
    that my demos grasp the rim at very different places (86-149° around the bowl). Executing my path at a fixed
-   pace recovered only half the gap (82%): the sideways path itself is part of the problem. A demonstration that
-   succeeds when replayed is not necessarily one a policy can learn, and only training a policy shows the
-   difference.
+   pace recovered only half the gap (82%): the sideways path itself is part of the problem
+   ([figure](#approach-figure)). A demonstration that succeeds when replayed is not necessarily one a policy can
+   learn (point 7 gives a quick check).
 3. **Check that the human's choices suit the robot.** When I grasped naturally, I took the bowl on the side
    facing me or on my right, sides the arm handles badly in this scene (0 of 20 on the right side), so the
    recordings had to follow a simple protocol: grasp the left rim. One of my carry paths swept through the place where the robot's scene has a cabinet.
@@ -539,6 +542,30 @@ What this suggests as a recipe for learning from human video:
    hidden behind the rim and hand tracking is least reliable. The grasp point came from the camera ray
    through the pinch intersected with the rim's plane, and the metric frame from printed tags; 6 of 25
    recordings still had to be dropped because the hand was never visible at the grasp.
+7. **Check whether the demos are learnable, not only whether they replay.** A demo that a robot can replay is
+   not necessarily a demo a policy can learn from. A cheap check once you have trained one policy: evaluate it
+   again with temporal ensembling, i.e. query it at every step and execute the average of the overlapping action
+   predictions. If the demos were consistent, the predictions agree and the average works as well as before;
+   every policy we trained on learnable data stayed above 90%. If the demos taught conflicting moves, the
+   predictions disagree and their average is a move nobody demonstrated; our policy trained on copied approaches
+   dropped from 57% to 12%.
+
+   | Training data | Normal execution | Predictions averaged | Results |
+   |---|---|---|---|
+   | official teleop demos | 97% | 100% | [`official_s0/eval_te.json`](results/act/official_s0/eval_te.json) |
+   | fully scripted motion | 100% | 100% | [`ours_consistent_intent_s0/`](results/act/ours_consistent_intent_s0/) |
+   | planned approach (5 demos, seeds 0 and 1; all 10 demos) | 96-99% | 92-94% | [`ours_consistent_vertical_s0/`](results/act/ours_consistent_vertical_s0/), [`_s1/`](results/act/ours_consistent_vertical_s1/), [`ours_all_vertical_s0/`](results/act/ours_all_vertical_s0/) |
+   | my copied approach (7 runs: data size, DART, seeds, longer training) | 57-67% | **12-48%** | [`ours_all_s0/`](results/act/ours_all_s0/), [`ours_consistent_clean_s0/`](results/act/ours_consistent_clean_s0/), [`ours_consistent_dart_s0/`](results/act/ours_consistent_dart_s0/), ... |
+   | my approach's path at a fixed pace | 82% | 34% | [`ours_consistent_timed_s0/`](results/act/ours_consistent_timed_s0/) |
+
+   Temporal ensembling is not our invention: it is ACT's own inference mode in the original paper (Zhao et al.,
+   2023), which weights the overlapping predictions exponentially to make motion smoother. It is no longer the
+   usual way to run chunked policies: LeRobot's ACT leaves it off by default, and most recent policies execute
+   part of a chunk and then predict again (as all our main results do). We use it as a probe, not as the way to
+   deploy: averaging is known to fail when a policy's predictions are multimodal, and that failure is exactly
+   what reveals demonstrations that teach conflicting moves. This is a consistent pattern across our 13 runs,
+   not a tested general rule, and it says that something is inconsistent, not what; recording where the policy
+   closes the gripper (notebook 11) is what located the cause.
 
 ## Takeaways: when do offline RL and the world model help?
 
