@@ -555,7 +555,7 @@ What this suggests as a recipe for learning from human video:
    | official teleop demos | 97% | 100% | [`official_s0/eval_te.json`](results/act/official_s0/eval_te.json) |
    | fully scripted motion | 100% | 100% | [`ours_consistent_intent_s0/`](results/act/ours_consistent_intent_s0/) |
    | planned approach (5 demos, seeds 0 and 1; all 10 demos) | 96-99% | 92-94% | [`ours_consistent_vertical_s0/`](results/act/ours_consistent_vertical_s0/), [`_s1/`](results/act/ours_consistent_vertical_s1/), [`ours_all_vertical_s0/`](results/act/ours_all_vertical_s0/) |
-   | my copied approach (7 runs: data size, DART, seeds, longer training) | 57-67% | **12-48%** | [`ours_all_s0/`](results/act/ours_all_s0/), [`ours_consistent_clean_s0/`](results/act/ours_consistent_clean_s0/), [`ours_consistent_dart_s0/`](results/act/ours_consistent_dart_s0/), ... |
+   | my copied approach (6 runs: data size, DART, seeds, longer training) | 57-67% | **12-48%** | [`ours_all_s0/`](results/act/ours_all_s0/), [`ours_consistent_clean_s0/`](results/act/ours_consistent_clean_s0/), [`ours_consistent_dart_s0/`](results/act/ours_consistent_dart_s0/), ... |
    | my approach's path at a fixed pace | 82% | 34% | [`ours_consistent_timed_s0/`](results/act/ours_consistent_timed_s0/) |
 
    Temporal ensembling is not our invention: it is ACT's own inference mode in the original paper (Zhao et al.,
@@ -563,7 +563,7 @@ What this suggests as a recipe for learning from human video:
    usual way to run chunked policies: LeRobot's ACT leaves it off by default, and most recent policies execute
    part of a chunk and then predict again (as all our main results do). We use it as a probe, not as the way to
    deploy: averaging is known to fail when a policy's predictions are multimodal, and that failure is exactly
-   what reveals demonstrations that teach conflicting moves. This is a consistent pattern across our 13 runs,
+   what reveals demonstrations that teach conflicting moves. This is a consistent pattern across our 12 runs with this check,
    not a tested general rule, and it says that something is inconsistent, not what; recording where the policy
    closes the gripper (notebook 11) is what located the cause.
 
