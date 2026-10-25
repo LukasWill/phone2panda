@@ -204,6 +204,7 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | ours_consistent_clean, training seed 1 | 450 | **66%** [56-75] (2 evals, n=100) | 10 | 5 | 5 |
 | ours_consistent_vertical, training seed 1 | 450 | **96%** [90-98] (2 evals, n=100) | 0 | 2 | 2 |
 | **ours_all_vertical: all 10 demos, `ours_all`'s scenes, approach planned** | 438 | **98%** [93-99] (2 evals, n=100) | 0 | 0 | 0 |
+| ours_consistent_timed: my approach's path, walked at a fixed pace (notebook 15) | 450 | **82%** [73-88] (2 evals, n=100) | 3 | 4 | 3 |
 
 Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
 follower) succeeds in 85% of these scenes (Table 1).
@@ -259,6 +260,7 @@ the planned approach gives 98% where copying my approach gave 57%.
 | fully scripted (intent), 5 demos | 100% | 100% [96-100] | - | 5.0-5.4 cm |
 | my approach, all 10 demos (`ours_all`) | 83% | 57% [47-66] | - | 5.4 cm in successes, 7.7 cm in failures |
 | approach planned straight down, all 10 demos | 91% | **98%** [93-99] | - | 3.9 cm |
+| my approach's path at a fixed pace, 5 demos | 98% | 82% [73-88] | - | 5.0 cm in successes, 6-9 cm in failures |
 
 - **A demonstration the robot can execute is not necessarily one a policy can learn.** The teacher with my
   approach succeeds 95% of the time, so H1 (teacher ceiling) explains only ~4 of the 32 points. The rest is
@@ -267,11 +269,16 @@ the planned approach gives 98% where copying my approach gave 57%.
   steps over all episodes is mostly this difference between demos, plus one demo whose timing is erratic).
   The planned approach comes straight down and closes at the same moment for every demo and scene (spread 1.2
   steps), like the teleop policy (2.5 steps).
-- **What exactly makes my approach hard to learn is not separated.** The planned approach differs in three
-  ways at once: direction (from above rather than sideways), timing (regular rather than variable), and where
-  the fingers close (0.7 cm further inside the rim, more margin). Any of them could matter. Notebook 15 keeps
-  the shape of my approach but walks it at a fixed pace, which also moves the grasp to 4.4 cm: it separates the
-  path's shape from how it is executed (timing and margin together).
+- **Both the path's shape and how it is executed matter, roughly half each** (notebook 15). The planned
+  approach differs from mine in direction (from above rather than sideways), timing (regular rather than
+  variable) and where the fingers close (0.7 cm further inside the rim). Notebook 15 kept my path's shape but
+  walked it at a fixed pace, which also moved the teacher's grasp to 4.4 cm. Result: **82%** [73-88], between
+  my approach (66%) and the planned one (98%); both gaps are about 16 points (95% intervals about ±8-10). The
+  prediction fixed beforehand called this outcome "both contribute". The policy still closes at a variable
+  moment (spread 7.5 steps, like the copied approach's 8.7; planned: 2.2), still closes at 5.0 cm rather than
+  the teacher's 4.4 cm, and still collapses when its predictions are averaged (34%). So even walked at a fixed
+  pace, a sideways path just above the rim leaves the policy unsure when and where to close; coming straight
+  down removes that. Timing and margin remain confounded with each other.
 
   ![path shape vs execution](assets/approach_shape_vs_execution.png)
 
@@ -511,8 +518,10 @@ What this suggests as a recipe for learning from human video:
 2. **Take the contact, plan the free motion.** The robot could execute my approach to the bowl (95%), but a
    policy trained on it could not reproduce it: it closed the gripper beside the rim instead of on it.
    The same data with a straight-down approach gave 98%. Once the approach was planned, it no longer mattered
-   that my demos grasp the rim at very different places (86-149° around the bowl). A demonstration that succeeds when replayed is not
-   necessarily one a policy can learn, and only training a policy shows the difference.
+   that my demos grasp the rim at very different places (86-149° around the bowl). Executing my path at a fixed
+   pace recovered only half the gap (82%): the sideways path itself is part of the problem. A demonstration that
+   succeeds when replayed is not necessarily one a policy can learn, and only training a policy shows the
+   difference.
 3. **Check that the human's choices suit the robot.** When I grasped naturally, I took the bowl on the side
    facing me or on my right, sides the arm handles badly in this scene (0 of 20 on the right side), so the
    recordings had to follow a simple protocol: grasp the left rim. One of my carry paths swept through the place where the robot's scene has a cabinet.
