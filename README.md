@@ -10,14 +10,21 @@ and trains a world model that imagines the robot's camera to judge plans before 
 
 The question running through the project: **what exactly should be transferred from a human video?** The
 short answer: the contact (where the hand grasps the bowl, how it carries it, where it sets it down), not the
-path the hand took to get there.
+path the hand took to get there. A policy trained on demos that keep my contact and plan the approach succeeds
+98% of the time, as often as one trained on teleoperated demos (97%); copying my whole motion gives 57%.
 
 ![frames from one of my recordings, background blurred](assets/phone_demo_strip.jpg)
 
 *One of my recordings (background blurred). Printed tags on the table, bowl and plate give a metric frame;
 the hand and the bowl are tracked from grasp to release.*
 
-<!-- HERO: generated robot demo + learned policy (notebook 16) goes here -->
+![a generated robot demo and the learned policy in the same evaluation scene](assets/hero.gif)
+
+*Left: a robot demo generated from one of my recordings: my grasp point, carry and place point, retargeted to
+this scene, with the approach to the bowl planned; the simulator checked that it succeeds. Right: the ACT
+policy trained on 438 such demos from my 10 training recordings, in an evaluation scene it never trained in.
+It sees two 128 px cameras and the arm state; the video is rendered at higher resolution. It succeeds in 98%
+[93-99] of evaluation episodes ([the first 8 scenes, none left out](#policy-8-scenes)).*
 
 ## Results at a glance
 
@@ -90,7 +97,7 @@ opened my fingers, the point on the rim where I grasped, and where the bowl and 
 this into a plan for the robot in its own scene: a sequence of gripper poses, each with the gripper open or
 closed. Three ways to do it, from "copy everything" to "copy only the intent":
 
-- **Absolute: replay my hand's path in fixed coordinates.** Every point of the path is mapped into the
+- **Absolute: replay my hand's path in fixed coordinates.** Every point of the path is converted into the
   robot's frame by one transform shared by all demos: my seat becomes the robot's base, and my average bowl
   position becomes the simulator's average bowl position. Where the bowl and plate are in a particular robot
   scene is ignored. This is what treating the video as a robot trajectory means.
@@ -142,7 +149,7 @@ side facing the robot, 270° the robot's right.
   Intent succeeds 20/20 on both, because it plans its own path. The more of the human motion we keep, the more
   of the human scene's assumptions we inherit.
 - **My natural grasp side does not work for this robot.** In 6 extra recordings I grasped the bowl without
-  instructions, on the side facing me or on my right. Mapped to the robot (my seat = the robot's base), that
+  instructions, on the side facing me or on my right. Retargeted to the robot (my seat = the robot's base), that
   is the side facing the robot (177-200°) or the robot's right (272°). From there the retargeted grasps
   mostly fail: 9-20/20 at about 180°, 4-14/20 at about 200°, 0/20 at 272° (object-relative and intent). So
   the main recordings follow a protocol: grasp the bowl's left rim (86-149° in the robot's frame). This
@@ -202,8 +209,9 @@ ACT (LeRobot, 20k steps, batch 32, same settings for every run), evaluated on th
 | **ours_all_vertical: all 10 demos, `ours_all`'s scenes, approach planned** | 438 | **98%** [93-99] (2 evals, n=100) | 0 | 0 | 0 |
 | ours_consistent_timed: my approach's path, walked at a fixed pace (notebook 15) | 450 | **82%** [73-88] (2 evals, n=100) | 3 | 4 | 3 |
 
-Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed plans of the 10 training demos, executed by the
-follower) succeeds in 85% of these scenes (Table 1).
+Failure columns are from one evaluation of 50 episodes each. For reference, the teacher itself (unperturbed
+plans of the 10 training demos, executed by the follower) succeeds in 85% [79-89] of 20 of these scenes (Q1's
+replays, `results/table1.csv`).
 
 - **The gap to teleop is in grasping, not placing.** Most failures never lift the bowl. When our policy does
   grasp, it places about as accurately as the teleop policy (median 1.9 vs 1.1 cm from the plate centre).
@@ -265,6 +273,12 @@ the planned approach gives 98% where copying my approach gave 57%.
 | approach planned straight down, all 10 demos | 91% | **98%** [93-99] | - | 3.9 cm |
 | my approach's path at a fixed pace, 5 demos | 98% | 82% [73-88] | - | 5.0 cm in successes, 6-9 cm in failures |
 
+<a id="policy-8-scenes"></a>
+![the policy trained with the planned approach in the first 8 evaluation scenes](assets/policy_8_scenes.gif)
+
+*The policy trained on all 10 demos with the planned approach (98%), in the first 8 of the 50 evaluation
+scenes, none left out (notebook 16, `tools/hero_gif.py`). The scenes differ by LIBERO's placement noise.*
+
 <a id="approach-figure"></a>
 ![path shape vs execution](assets/approach_shape_vs_execution.png)
 
@@ -315,6 +329,18 @@ average of the overlapping action predictions. If the demos were consistent, the
 average works as well as before. If the demos taught conflicting moves, the predictions disagree and their
 average is a move nobody demonstrated.
 
+One command runs it (`p2p/policy/learnability.py`):
+
+```bash
+python -m p2p.policy.learnability runs/<run>/final   # GPU: two evaluations of 50 episodes, then a verdict
+python -m p2p.policy.learnability results/act/*/     # no simulator: this table's verdicts from the saved evaluations
+```
+
+It reports how much of the normal success rate survives averaging. Policies trained on consistent demos kept
+93-103% in our runs, policies trained on conflicting demos 21-76%, so the tool calls >= 90% consistent and
+< 80% conflicting. One evaluation of 50 episodes is not always enough on its own: in two of the seven
+conflicting runs (DART, longer training) the drop was only 14-16 points, inside its 95% interval.
+
 | Training data | Normal execution | Predictions averaged | Results |
 |---|---|---|---|
 | official teleop demos | 97% | 100% | [`official_s0/eval_te.json`](results/act/official_s0/eval_te.json) |
@@ -341,7 +367,7 @@ ACT on successes only throws away the 162 failed rollouts. An IQL critic (expect
 at success) trained on the simulator's 18-D state scores every frame: its advantage says whether the action
 taken there did better or worse than usual from that state. ACT is then retrained on all 600 episodes with
 loss weights `exp(beta * A)` on standardised advantages (beta = 1, mean 1, capped at 20). The critic sees the
-simulator state, the policy only images.
+simulator state; the policy sees only its cameras and its own arm state.
 
 - Gate, fixed before the run: the critic must tell success from failure halfway through an episode.
   AUROC 0.95 (0.66 from the first frame) -> passed (`results/rl/iql_diagnostics.json`).
@@ -566,7 +592,8 @@ What this suggests as a recipe for learning from human video:
    recordings still had to be dropped because the hand was never visible at the grasp.
 7. **Check whether the demos are learnable, not only whether they replay.** One extra evaluation of one trained
    policy, with its overlapping predictions averaged, separated learnable from unlearnable data in all our runs
-   ([quick check](#a-quick-check-are-the-demos-learnable)); recording where the gripper closes then showed why.
+   ([quick check](#a-quick-check-are-the-demos-learnable), one command:
+   `python -m p2p.policy.learnability <checkpoint>`); recording where the gripper closes then showed why.
 
 ### When do offline RL and a world model help?
 
@@ -635,9 +662,10 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Check a recording | Mac | `pip install -r requirements-mac.txt`; `python tools/check_recording.py <folder>` | seconds |
 | Extract demos | Mac | `pip install mediapipe==0.10.14`; `python -m p2p.human.extract <raw_dir> data/processed` | minutes |
 | Simulator sanity check | Colab | `notebooks/00_sim_sanity.ipynb` | ~10 min |
-| Table 1 (retargeting) | any CPU | `python -m p2p.retarget.replay data/processed --inits 20` then `python tools/table1_summary.py` | ~40 min (2 cores) |
+| Retargeting table (Q1) | any CPU | `python -m p2p.retarget.replay data/processed --inits 20` then `python tools/table1_summary.py` | ~40 min (2 cores) |
 | Generate data | Colab | `notebooks/02_generate_data.ipynb` | ~65 min + ~30 min datasets |
 | Train / evaluate ACT | Colab | `notebooks/03_train_eval_act.ipynb` (`DATASET` = official, ours_50, ours_all, ours_mix) | ~1.5 h per run |
+| Learnability check of a trained policy | Colab | `python -m p2p.policy.learnability <checkpoint>` (optional cell in notebook 03); from saved results on any CPU: `python -m p2p.policy.learnability results/act/*/` | 1-2 evaluations |
 | World model | Colab | `notebooks/04_world_model.ipynb` | ~1.5 h |
 | Offline-RL weights | Colab CPU | `notebooks/05_offline_rl.ipynb` | ~25 min |
 | Policy diagnostics (why ours < teleop) | Colab | `notebooks/06_policy_diagnostics.ipynb` | ~15-60 min |
@@ -651,7 +679,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Second training seed (clean vs planned approach) | Colab | `notebooks/14_second_seed.ipynb`, once per `VARIANT` | ~1.7 h each |
 | Shape vs execution of my approach | Colab | `notebooks/15_fixed_pace_approach.ipynb` | ~3 h |
 | High-resolution videos for this README | Colab | `notebooks/16_hero_videos.ipynb` | ~15 min |
-| README figures | any CPU | `tools/readme_figures.py`, `tools/strategies_figure.py`, `tools/approach_figure_*.py`, `tools/pipeline_figure.py` | minutes |
+| README figures | any CPU | `tools/readme_figures.py`, `tools/strategies_figure.py`, `tools/approach_figure_*.py`, `tools/pipeline_figure.py`, `tools/hero_gif.py` (from notebook 16's videos) | minutes |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
@@ -684,12 +712,12 @@ p2p/human/     phone recordings -> metric 3D in a table frame (Stray Scanner loa
 p2p/sim/       LIBERO wrapper (LeRobot-compatible observations), pose controller, scripted pick-and-place
 p2p/retarget/  human trajectory -> robot waypoints (absolute / object-relative / intent)
 p2p/data/      sim-verified data generation, LeRobot dataset I/O
-p2p/policy/    ACT training and evaluation (with per-sample weights)
+p2p/policy/    ACT training and evaluation (with per-sample weights), behaviour features, learnability check
 p2p/rl/        IQL critic -> advantage weights
 p2p/wm/        action-conditioned world model: model, data, training, evaluation
 notebooks/     Colab notebooks 00-16
-tools/         tag sheet, recording checker, Table 1 summary, failure analysis (generated data and policies),
-               yield estimate, demo consistency, nominal arm model fit, README figures
+tools/         tag sheet, recording checker, retargeting summary (Q1), failure analysis (generated data and
+               policies), yield estimate, demo consistency, nominal arm model fit, README figures and animations
 docs/          the full investigation (H1-H9) and the full data-collection notes
 results/       every number in this README
 tests/         python -m pytest -q tests

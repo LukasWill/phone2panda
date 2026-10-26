@@ -1,0 +1,166 @@
+{
+ "teacher": [
+  {
+   "init": 0,
+   "success": true,
+   "steps": 107,
+   "videos": [
+    "teacher_92e0b86bc6_init00_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init00_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init00_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 1,
+   "success": true,
+   "steps": 107,
+   "videos": [
+    "teacher_92e0b86bc6_init01_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init01_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init01_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 2,
+   "success": true,
+   "steps": 106,
+   "videos": [
+    "teacher_92e0b86bc6_init02_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init02_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init02_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 3,
+   "success": true,
+   "steps": 103,
+   "videos": [
+    "teacher_92e0b86bc6_init03_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init03_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init03_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 4,
+   "success": true,
+   "steps": 104,
+   "videos": [
+    "teacher_92e0b86bc6_init04_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init04_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init04_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 5,
+   "success": true,
+   "steps": 108,
+   "videos": [
+    "teacher_92e0b86bc6_init05_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init05_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init05_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 6,
+   "success": true,
+   "steps": 104,
+   "videos": [
+    "teacher_92e0b86bc6_init06_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init06_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init06_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 7,
+   "success": true,
+   "steps": 106,
+   "videos": [
+    "teacher_92e0b86bc6_init07_ok_agentview.mp4",
+    "teacher_92e0b86bc6_init07_ok_frontview.mp4",
+    "teacher_92e0b86bc6_init07_ok_sideview.mp4"
+   ]
+  }
+ ],
+ "policy": [
+  {
+   "init": 0,
+   "success": true,
+   "steps": 107,
+   "videos": [
+    "policy_init00_ok_agentview.mp4",
+    "policy_init00_ok_frontview.mp4",
+    "policy_init00_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 1,
+   "success": true,
+   "steps": 104,
+   "videos": [
+    "policy_init01_ok_agentview.mp4",
+    "policy_init01_ok_frontview.mp4",
+    "policy_init01_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 2,
+   "success": true,
+   "steps": 100,
+   "videos": [
+    "policy_init02_ok_agentview.mp4",
+    "policy_init02_ok_frontview.mp4",
+    "policy_init02_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 3,
+   "success": true,
+   "steps": 108,
+   "videos": [
+    "policy_init03_ok_agentview.mp4",
+    "policy_init03_ok_frontview.mp4",
+    "policy_init03_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 4,
+   "success": true,
+   "steps": 101,
+   "videos": [
+    "policy_init04_ok_agentview.mp4",
+    "policy_init04_ok_frontview.mp4",
+    "policy_init04_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 5,
+   "success": true,
+   "steps": 97,
+   "videos": [
+    "policy_init05_ok_agentview.mp4",
+    "policy_init05_ok_frontview.mp4",
+    "policy_init05_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 6,
+   "success": true,
+   "steps": 97,
+   "videos": [
+    "policy_init06_ok_agentview.mp4",
+    "policy_init06_ok_frontview.mp4",
+    "policy_init06_ok_sideview.mp4"
+   ]
+  },
+  {
+   "init": 7,
+   "success": true,
+   "steps": 110,
+   "videos": [
+    "policy_init07_ok_agentview.mp4",
+    "policy_init07_ok_frontview.mp4",
+    "policy_init07_ok_sideview.mp4"
+   ]
+  }
+ ]
+}

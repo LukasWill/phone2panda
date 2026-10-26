@@ -1,7 +1,7 @@
 # Data: my recordings (full version)
 
 - 25 recordings. **13 pass every check** and are the main set (10 training, 3 held out, chosen before any
-  training); 6 more with my *natural* grasp are used only in Table 1; 6 were excluded because the grasp
+  training); 6 more with my *natural* grasp are used only in Q1's retargeting test; 6 were excluded because the grasp
   point could not be measured (hand hidden at the grasp).
 - Protocol (kept minimal): tags visible in the first second; grasp the bowl's left rim; hand and bowl visible
   from grasp to release; bowl on the plate visible at the end. The phone is hand-held: the camera track is
