@@ -215,10 +215,14 @@ def wm_auroc():
             label="all three strategies (n=180)")
     ax.plot(range(7), [s["object_relative"]["auroc"][k] for k in keys], "o-", color=BLUE, lw=2, ms=5,
             label="object-relative only (n=60), the harder test")
+    true = json.loads((ROOT / "results" / "wm" / "wm_metrics.json").read_text())["auroc_true_bowl"]
+    ax.axhline(true, color=GREEN, lw=1.2, ls=":")
+    ax.text(6.0, true + 0.012, f"true final bowl position: {true:.2f}", fontsize=8, color="#127a55", ha="right")
     ax.axhline(0.5, color=MUTED, lw=1, ls="--"); ax.text(0.05, 0.52, "chance", fontsize=8, color=INK2)
-    ax.set_xticks(range(7), labels); ax.set_ylim(0.4, 1.02)
+    ax.set_xticks(range(7), labels); ax.set_ylim(0.4, 1.04)
     ax.set_xlabel("how much of the episode is imagined (before its end)"); ax.set_ylabel("success AUROC")
-    ax.legend(frameon=False, fontsize=8, loc="lower right"); ax.grid(color=GRID, lw=0.6); clean(ax, left=True)
+    ax.legend(frameon=False, fontsize=8, loc="lower right", bbox_to_anchor=(1.0, 0.13)); ax.grid(color=GRID, lw=0.6)
+    clean(ax, left=True)
     save(fig, "wm_auroc.png")
 
 
