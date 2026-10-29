@@ -35,8 +35,8 @@ It sees two 128 px cameras and the arm state; the video is rendered at higher re
 | **What exactly should be transferred from a human video?** ([Q2](#q2-imitation-from-sim-verified-phone-data-act)) | The contact: where to grasp, how to carry, where to place. Copying how my hand approached the bowl gives demos the robot can replay but a policy cannot learn; planning that approach instead gives teleop-level policies. | Same 5 demos and scenes: copied approach 66% [60-73], planned approach **98% [94-99]** (2 training seeds). All 10 demos: 57% [47-66] → **98% [93-99]**. Policy from 49 teleoperated demos: 97% [92-99] |
 | **How should a human demo be retargeted to the robot's scene?** ([Q1](#q1-retargeting-what-transfers-from-a-human-demo)) | Relative to the objects. Replaying the hand path in fixed coordinates never works. | Scripted replays, 13 demos x 20 scenes: absolute 0% [0-2], object-relative 81% [76-85], intent 100% [99-100] |
 | **How can you tell whether demos are learnable?** ([Q2](#a-quick-check-are-the-demos-learnable)) | Train one policy, then run it averaging its overlapping action predictions. Learnable demos barely notice; demos that teach conflicting moves collapse. | Averaged: 92-100% for every policy trained on learnable demos, 12-48% for those trained on my copied approach (12 runs) |
-| **Does learning from the failed rollouts help?** ([offline RL](#learning-from-failures-offline-rl-gated)) | Not measurably. A first +12-point result was evaluation noise. | IQL-weighted 64% [54-73], same data unweighted 60% [50-69], successes only 57% [47-66] |
-| **Can a world model judge a plan before execution?** ([Q3](#q3-world-model-can-it-judge-a-plan-before-execution)) | It ranks plans well from their executed actions, but cannot yet pick one before acting. | Success AUROC 0.93 imagining whole held-out episodes from their first frame; choosing among 13 plans: 78% [65-87] vs 71% random and 98% for the best fixed demo |
+| **Does learning from the failed rollouts help?** ([offline RL](#learning-from-failed-rollouts-offline-rl)) | Not measurably: the critic's weights moved failures from grasping to placing. A first +12-point result was evaluation noise. | IQL-weighted 64% [54-73], same data unweighted 60% [50-69], successes only 57% [47-66] |
+| **Can a world model judge a plan before execution?** ([Q3](#q3-world-model-can-it-judge-a-plan-before-execution)) | It judges an action sequence well, but could not yet pick a plan before acting: a feedback controller's actions depend on contacts it never sees. | Success AUROC 0.93 imagining whole held-out episodes from their first frame; choosing among 13 plans: 78% [65-87] vs 71% random and 98% for the best fixed demo |
 
 *Policy success is measured on LIBERO's 50 fixed evaluation scenes, which were never used to make training
 data; each rate pools two evaluations of 50 episodes per training seed.*
@@ -323,23 +323,23 @@ moment every time.*
 
 ### A quick check: are the demos learnable?
 
-A demo that a robot can replay is not necessarily a demo a policy can learn from. A cheap check once you have
-trained one policy: evaluate it again with temporal ensembling, i.e. query it at every step and execute the
-average of the overlapping action predictions. If the demos were consistent, the predictions agree and the
-average works as well as before. If the demos taught conflicting moves, the predictions disagree and their
-average is a move nobody demonstrated.
-
-One command runs it (`p2p/policy/learnability.py`):
+A demo that the robot can replay is not always one a policy can learn. Once one policy is trained, a quick
+way to tell is to run it a second time with temporal ensembling, ACT's original inference mode (Zhao et al.,
+2023): the policy predicts its next 50 actions at every step, and the robot executes a weighted average of all
+the predictions made so far for the current step. When the demos are consistent, these predictions agree and
+averaging changes little. When the demos teach conflicting moves, the predictions disagree, their average is
+a move that no demo contains, and success drops.
 
 ```bash
-python -m p2p.policy.learnability runs/<run>/final   # GPU: two evaluations of 50 episodes, then a verdict
-python -m p2p.policy.learnability results/act/*/     # no simulator: this table's verdicts from the saved evaluations
+python -m p2p.policy.learnability runs/<run>/final   # two evaluations of 50 episodes, then a verdict
 ```
 
-It reports how much of the normal success rate survives averaging. Policies trained on consistent demos kept
-93-103% in our runs, policies trained on conflicting demos 21-76%, so the tool calls >= 90% consistent and
-< 80% conflicting. One evaluation of 50 episodes is not always enough on its own: in two of the seven
-conflicting runs (DART, longer training) the drop was only 14-16 points, inside its 95% interval.
+The command compares the success rates with and without averaging. Across our 12 runs the two groups are
+clearly apart: policies trained on consistent demos kept 93-103% of their success, policies trained on my
+copied approach 21-76%. The tool calls a run consistent above 90% and conflicting below 80%. It also gives a 95%
+interval for the drop, which shows when more episodes are worth running: two of the conflicting runs (DART,
+longer training) dropped by 14-16 points, which 50 episodes per evaluation cannot tell apart from
+evaluation noise on their own.
 
 | Training data | Normal execution | Predictions averaged | Results |
 |---|---|---|---|
@@ -349,89 +349,116 @@ conflicting runs (DART, longer training) the drop was only 14-16 points, inside 
 | my copied approach (6 runs: data size, DART, seeds, longer training) | 57-67% | **12-48%** | [`ours_all_s0/`](results/act/ours_all_s0/), [`ours_consistent_clean_s0/`](results/act/ours_consistent_clean_s0/), [`ours_consistent_dart_s0/`](results/act/ours_consistent_dart_s0/), ... |
 | my approach's path at a fixed pace | 82% | 34% | [`ours_consistent_timed_s0/`](results/act/ours_consistent_timed_s0/) |
 
-Looking more often without averaging does not help either: executing 10 instead of 25 of the 50 predicted
-actions gives 96% for the teleop policy and 50% for ours (`results/act/*/eval_n10.json`).
+Executing fewer actions per prediction, without averaging, does not change the picture: 10 instead of 25 of
+the 50 predicted actions gives 96% for the teleop policy and 50% for ours (`results/act/*/eval_n10.json`).
 
-Temporal ensembling is not our invention: it is ACT's own inference mode in the original paper (Zhao et al.,
-2023), which weights the overlapping predictions exponentially to make motion smoother. It is no longer the
-usual way to run chunked policies: LeRobot's ACT leaves it off by default, and most recent policies execute
-part of a chunk and then predict again (as all our main results do). We use it as a probe, not as the way to
-deploy: averaging is known to fail when a policy's predictions are multimodal, and that failure is exactly
-what reveals demonstrations that teach conflicting moves. This is a consistent pattern across our 12 runs with
-this check, not a tested general rule, and it says that something is inconsistent, not what; recording where
-the policy closes the gripper (notebook 11) is what located the cause.
+Why averaging works as a probe: it blurs predictions that have several modes. That is why most chunked
+policies today (LeRobot's ACT by default, and all our main results) execute part of a chunk and then predict
+again. Here the same property is the signal: it exposes demos that teach conflicting moves. The thresholds come
+from these 12 runs on one task. The check tells you that the demos conflict; recording where the gripper
+closes (notebook 11) showed where.
 
-### Learning from failures (offline RL, gated)
+### Learning from failed rollouts (offline RL)
 
-ACT on successes only throws away the 162 failed rollouts. An IQL critic (expectile 0.7, gamma 0.99, reward 1
-at success) trained on the simulator's 18-D state scores every frame: its advantage says whether the action
-taken there did better or worse than usual from that state. ACT is then retrained on all 600 episodes with
-loss weights `exp(beta * A)` on standardised advantages (beta = 1, mean 1, capped at 20). The critic sees the
-simulator state; the policy sees only its cameras and its own arm state.
+Data generation produced 600 rollouts, 162 of which failed. Imitating only the successes throws the failures
+away. Offline RL can use them: a critic learns which actions led to success, and the policy then imitates all
+600 rollouts with more weight on those actions.
 
-- Gate, fixed before the run: the critic must tell success from failure halfway through an episode.
-  AUROC 0.95 (0.66 from the first frame) -> passed (`results/rl/iql_diagnostics.json`).
-- Weights: success frames 1.15 on average, failure frames 0.82; 36% effective sample size.
-- Result, three ways to use the same 600 rollouts (each checkpoint evaluated twice on the 50 scenes):
+- **Critic:** IQL (expectile 0.7, gamma 0.99, reward 1 at success) on the simulator's 18-D state. For every
+  frame, its advantage says whether the action taken did better or worse than usual from that state. The
+  policy itself still sees only its cameras and its arm state.
+- **Weights:** each frame's ACT loss is weighted by `exp(A)` on standardised advantages (mean 1, capped at 20).
+  Success frames get 1.15 on average, failure frames 0.82; the effective sample size falls to 36%.
+- **Gate, fixed before training the policy:** the critic had to tell success from failure halfway through an
+  episode. It did: AUROC 0.95, though only 0.66 at the first frame (`results/rl/iql_diagnostics.json`).
 
-  | Training data | First evaluation | Second evaluation | Pooled (n=100) |
-  |---|---|---|---|
-  | successes only (filtered imitation, ours_all) | 56% | 58% | 57% [47-66] |
-  | all rollouts, unweighted (control) | 54% | 66% | 60% [50-69] |
-  | all rollouts, IQL advantage-weighted | 66% | 62% | 64% [54-73] |
+![offline RL: success of the three variants and how the episodes ended](assets/offline_rl.png)
 
-  The first evaluation suggested a 12-point gain from the weights. Re-evaluating the same checkpoints (GPU
-  evaluation is not bit-reproducible) moved the unweighted run by 12 points, so a single 50-episode evaluation
-  cannot resolve differences of this size. Pooled, the three are within noise of each other: **no measurable
-  effect of learning from failures** at this scale. That is not proof of no effect: weighted minus unweighted
-  is +4 points with a 95% interval of roughly -9 to +17, and this interval is optimistic, because both
-  evaluations reuse the same 50 scenes and training-seed variation (one seed each) is not included.
+*Left: three ways to use the same 600 rollouts; each policy evaluated twice on the 50 scenes (circles) and
+pooled (bar, 95% interval). Right: how the 100 evaluation episodes of the unweighted and the weighted policy
+ended (`tools/wm_rl_figures.py`).*
+
+- **Success: no measurable difference.** 57%, 60% and 64%, with overlapping intervals; weighted minus
+  unweighted is +4 points, 95% interval -9 to +17 (one training seed each, so seed variation is not
+  included). A single evaluation had suggested +12 points, but re-evaluating the same checkpoints moved the
+  unweighted policy by 12 points; every rate here pools two evaluations.
+- **Behaviour: the weights moved the failures rather than removing them.** The weighted policy missed fewer
+  grasps (18 vs 29 of 100 episodes) but set the bowl down more than 3 cm from the plate centre more often (16
+  vs 4). The two roughly cancel. This comparison was made after the fact; the placement difference is
+  unlikely to be chance (Fisher's exact test, p = 0.008), the grasp difference is suggestive (p = 0.09). Why
+  placement got worse was not tested.
+- **Reading, in the light of Q2.** All three policies learn the same copied approach, and Q2 showed that its
+  problem is demos that conflict, not good and bad actions mixed together. Weighting changes how much each
+  rollout counts but cannot make the approach consistent, so success stays where it was. With the planned
+  approach the policy already reaches 98%, which leaves little for offline RL to add on this task.
 
 ## Q3. World model: can it judge a plan before execution?
 
-A world model predicts what the camera will see after a given sequence of robot actions, without running the
-simulator. Here it is used to judge a plan before executing it.
+A world model predicts what the camera will see after a sequence of robot actions, without running the
+simulator. If it is accurate enough, it can judge a plan before the robot executes it.
 
-```
- real camera frame (64x64 px)
-        |  encoder (4 conv layers)
-        v
-   z_t: 256 numbers summarising the scene             robot actions for the next 0.1 s
-        |                                             (2 control steps x 7 numbers = 14)
-        v                                                         |
-   +-----------------------------------------------+              |
-   | GRU with a 512-number memory                  | <------------+
-   | z_t+1 = z_t + predicted change                |
-   +-----------------------------------------------+
-        |   repeat from z_t+1 with the next actions: no new camera frames ("imagination")
-        |
-        +--> decoder (4 deconv layers) --> imagined camera frame at t+0.1 s
-        +--> bowl head (small MLP)     --> bowl position (x, y, z) at t+0.1 s
-```
+**Answer: it judges an action sequence well, but could not yet choose a plan before acting.** Given the
+actions a robot really executed, it tells successful from failed episodes of demos it never saw, from the first
+frame alone. To judge a plan, it first needs the plan's actions, and for a controller that steers by feedback
+these depend on contacts that only happen during execution.
 
-- **10 Hz.** The robot is controlled at 20 Hz (one 7-number action every 50 ms: gripper move, wrist rotation,
-  open/close). The world model takes steps of 0.1 s, so each of its steps consumes two consecutive actions (14
-  numbers) and predicts the frame 0.1 s later. A 7 s episode is then 70 model steps instead of 140, which
-  halves the number of predictions chained on top of each other.
-- **Deterministic:** one predicted future per action sequence, no uncertainty.
-- **Training signal:** real frames must survive encoder -> decoder; imagined frames must match the real future
-  frames; imagined summaries are pulled towards the encoder's summary of the real future frame; and the bowl
-  head must read the true bowl position (from the simulator) from both real and imagined summaries.
-- **Open-loop training with a curriculum.** Each training example is a window of an episode: the model sees
-  only its first real frame plus the actions, imagines the whole window step by step from its own
-  predictions (as it will at test time), and is penalised at every step. Windows start at 8 steps (0.8 s) and
-  grow steadily to 32 steps (3.2 s) by the middle of training (10k of 20k updates), then stay at 3.2 s. Short
-  windows first teach one step of motion; long windows later teach the model not to drift, which matters
-  because it is later asked to imagine whole episodes of up to 15 s.
+![the world model judging recorded actions (A) and choosing a plan before acting (B)](assets/wm_two_uses.png)
+
+### The model
+
+![how the world model imagines an episode from one real frame and the actions](assets/wm_model.png)
+
+*A held-out demo imagined from its first frame: the frames below the summaries are the model's own
+predictions at 0.1 s, 3.0 s and 6.7 s (the animation in [Results at a glance](#results-at-a-glance) shows
+the whole episode next to the real camera).*
+
+- **Inputs:** the scene camera the policy also sees (agentview), at 64 x 64 px, and the robot's actions. The robot acts at 20 Hz; the model takes
+  steps of 0.1 s, each consuming two actions (14 numbers), so a 7 s episode is 70 chained predictions instead
+  of 140.
+- **Parts:** an encoder (4 conv layers) compresses a frame into a summary z of 256 numbers; a GRU with 512
+  numbers of memory predicts how z changes with the next actions; a decoder (4 deconv layers) turns z back
+  into a frame; a small bowl head reads the bowl's position (x, y, z) from z. Deterministic: one predicted
+  future per action sequence.
+- **Trained the way it is used:** each training window starts from one real frame and is imagined to its end
+  from the model's own predictions, with a loss at every step. Windows grow from 0.8 s to 3.2 s over the first
+  half of training: short windows teach one step of motion, long ones teach the model not to drift. Losses:
+  reconstruct real frames, match imagined frames and summaries to the real future, and read the true bowl
+  position from both real and imagined summaries.
 - **Data:** 680 training episodes (+80 for validation) from the 10 training demos, successes and failures,
-  all three strategies. Test: **180 episodes of the 3 held-out demos**, each replayed with all three strategies
-  in the same 20 scenes.
+  all three retargeting strategies. **Test: 180 episodes of the 3 held-out demos**, each retargeted with all
+  three strategies into the same 20 scenes.
+
+<details>
+<summary>Why success is read from the imagined bowl, not from a "success" head</summary>
+
+An obvious design would add a classifier that reads "will this succeed?" from the imagined state. In this
+data such a head can cheat: LIBERO ends an episode the moment it succeeds, while failures run to the 300-step
+limit, so successes are short and failures long, and the end of a success always shows the bowl just being
+set down. A head could learn to recognise the episode's length or its last moments instead of the outcome; it
+would score well here and fail on plans of any other length. The bowl position is supervised at every frame of
+every episode and is a physical quantity, so reading success from it (with LIBERO's own criterion, distance to
+the plate centre) cannot take that shortcut.
+
+</details>
 
 ### How well does it predict?
 
-Starting from a real frame, the world model imagines up to 4 s ahead using the actions that were really
-executed, and its prediction is compared with what happened (1226 start points: one per second of every test
-episode, wherever 4 s remain). Two simple baselines and a ceiling put the numbers in context:
+Starting from a real frame of a test episode, the model imagines up to 4 s ahead with the actions that were
+really executed, and is compared with what happened (1226 start points: one per second of every test episode,
+wherever 4 s remain).
+
+![prediction error against how far ahead the world model imagines, with baselines](assets/wm_prediction.png)
+
+- **Image:** over 0.1 s almost nothing moves, so copying the start frame is the better prediction there, and
+  the model is only 0.4 dB below its ceiling: its error is the blur of squeezing a frame through 256 numbers,
+  not wrong motion. From about 1.4 s on it beats "nothing moves", by 2.4 dB at 4 s: it predicts where the arm
+  and the bowl go. Its gap to the ceiling grows from 0.4 to 3.7 dB over 4 s, as small errors compound.
+- **Bowl:** the model's error stays at 5-6 cm while "the bowl stays put" grows to 11 cm: it knows the bowl
+  travels with the gripper. But 5-6 cm is more than LIBERO's 3 cm success tolerance (at 64 px the bowl is
+  small and partly hidden by the gripper), which makes its success calls pessimistic (next section).
+
+<details>
+<summary>The numbers</summary>
 
 | Seconds imagined ahead | 0.1 | 1 | 2 | 4 |
 |---|---|---|---|---|
@@ -445,80 +472,50 @@ episode, wherever 4 s remain). Two simple baselines and a ceiling put the number
 
 PSNR compares pixels: 30 dB is an average pixel error of about 3% of full brightness, 25 dB about 6%, 23 dB
 about 7%. Bowl rows only count start points where the bowl has moved more than 2 cm by that time (none at
-0.1 s), otherwise "stays where it was" would be trivially right. The same numbers, at every horizon:
+0.1 s), otherwise "stays where it was" would be trivially right (`results/wm/wm_metrics.json`).
 
-![](results/wm/wm_horizon.png)
+</details>
 
-- **Short horizons favour the "nothing moves" baseline.** In 0.1 s the scene hardly changes, so the start
-  frame is almost a perfect prediction (39 dB). The model's frame is worse (30.3 dB) but only 0.4 dB below
-  the ceiling: at short horizons its error is the blur of its autoencoder (every frame squeezed through 256
-  numbers), not wrong motion.
-- **From about 1.3 s on, the model beats "nothing moves"**, and the margin grows (25.3 vs 22.9 dB at 4 s): it
-  predicts where the arm and the bowl go.
-- **The gap to the ceiling grows from 0.4 to 3.7 dB over 4 s.** Each imagined step builds on the previous one,
-  so small errors compound.
-- **The bowl:** assuming it stays put is off by 11 cm after 4 s of carrying; the model by 6 cm, and its error
-  does not grow with the distance travelled: it knows the bowl travels with the gripper. Its reading of a
-  carried bowl is coarse, though (4-6 cm; at 64 px the bowl is small and partly hidden by the gripper),
-  which is more than LIBERO's 3 cm success tolerance.
+### Judging an action sequence
 
-### Success from imagination
+To score an episode, the model imagines it from its first frame and the actions that were executed; the score
+is the horizontal distance from the imagined bowl at the end to the plate centre. On the 180 test episodes
+this separates successes from failures with an AUROC of 0.97, and of 0.93 within object-relative alone, the
+harder test, because there successes and failures look alike (AUROC: the probability that a random success
+gets a smaller distance than a random failure; 0.5 is chance, and the true final bowl position gives 0.99).
+Counting an episode as a predicted success when its imagined bowl ends within 3.2 cm of the plate centre (a
+threshold chosen on the validation episodes):
 
-To judge an episode, take the real frame H seconds before its end, then imagine the remaining H seconds from
-the recorded actions alone: every step in between is predicted from the model's own previous prediction, with
-no further real frames. What is imagined is the model's internal summary, from which both a frame and the
-bowl position can be read; for scoring, only the bowl position at the last step is used. The score is the
-horizontal distance from that imagined bowl to the plate centre (the plate does not move). AUROC is the
-probability that a random successful episode gets a smaller distance than a random failed one (0.5 = chance,
-1 = perfect; the true final bowl position gives 0.99). H = 0 reads the bowl from the real last frame;
-"whole episode" imagines everything from the first frame, which is the setting of judging a plan before
-executing it.
-
-| Imagined before the end | 0 | 0.5 s | 1 s | 2 s | 4 s | 8 s | whole episode |
-|---|---|---|---|---|---|---|---|
-| AUROC, all strategies (n=180) | 0.98 | 0.95 | 0.96 | 0.86 | 0.96 | 0.96 | 0.97 |
-| AUROC, object-relative only (n=60) | 0.96 | 0.95 | 0.89 | 0.80 | 0.91 | 0.89 | **0.93** |
-
-![](results/wm/wm_auroc.png)
-
-The object-relative row is the harder test: within one strategy, successes and failures look alike, whereas
-across strategies "absolute never moves the bowl" is easy to see. The dip at 2 s is not understood. A
-plausible cause: 2 s before the end the bowl is usually held in the gripper above the plate, partly hidden,
-which is exactly where the bowl reading is least accurate; imagining from earlier frames starts from a clear
-view of the bowl.
-
-**Judging plans before execution** (from the first frame and the plan's actions). "Predicted" counts the
-episodes whose imagined final bowl lies within 3.2 cm of the plate centre (a threshold chosen on the
-validation episodes):
-
-| Strategy | True success | Predicted by the world model |
+| Strategy (held-out demos, 60 episodes each) | True success | Predicted by the world model |
 |---|---|---|
 | intent | 97% | 80% |
 | object-relative | 57% | 32% |
 | absolute | 0% | 0% |
 
-It ranks the strategies in the true order, on demos it never saw, but is pessimistic: its coarse reading of
-the bowl (see above) turns narrow successes into predicted failures.
+It ranks the strategies in the true order, on demos it never saw, but it is pessimistic: its coarse reading
+of the bowl turns narrow successes into predicted failures.
 
-**Why no "success" head.** An obvious design would add a classifier that reads "will this succeed?" from the
-imagined state. In this data such a head can cheat: LIBERO ends an episode the moment it succeeds, while
-failures run to the 300-step limit, so successes are short and failures long, and the end of a success
-always shows the bowl just being set down. A head could learn to recognise the episode's length or its last
-moments instead of the outcome; it would score well here and fail on plans of any other length. The bowl
-position is supervised at every frame of every episode and is a physical quantity, so reading success from
-it (with LIBERO's own criterion, distance to the plate centre) cannot take that shortcut.
+<details>
+<summary>Imagining only the end of the episode</summary>
 
-### Choosing a plan with the world model (notebook 07)
+Starting the imagination later (from the real frame H seconds before the end) gives the same picture, with
+one dip at 2 s. Its cause was not tested; a plausible one: 2 s before the end the bowl is usually held in the
+gripper above the plate, partly hidden, which is exactly where the bowl reading is least accurate.
+
+![success AUROC against how much of the episode is imagined](assets/wm_auroc.png)
+
+</details>
+
+### Choosing a plan before acting (notebook 07)
 
 Can the world model make a decision, not just rank strategies? In each of the 50 evaluation scenes the robot
 has 13 candidate plans: the object-relative retargeting of each main demo, with a random grasp and place
 perturbation as in data generation. The world model must pick one before anything is executed. It needs the
 action sequence of each plan, but the waypoint follower computes actions by feedback on the gripper pose, so
-the sequence is produced against a nominal model of the arm (how the gripper moves for a given command,
-fitted on free motion; `tools/fit_arm_model.py`). The model knows the arm, not the bowl or the cabinet. The
-world model imagines each sequence from the scene's real first frame, and the candidate whose imagined bowl
-ends closest to the plate is executed. All 650 candidates were also run in the simulator, only to score the
-choice (`results/plan_select/`):
+the sequence is produced against a nominal model of the arm (how the gripper moves for a given command, fitted
+on free motion; `tools/fit_arm_model.py`). The world model imagines each sequence from the scene's real first
+frame, and the candidate whose imagined bowl ends closest to the plate is executed. All 650 candidates were
+also run in the simulator, only to score the choice (`results/plan_select/`):
 
 | Rule for choosing one of the 13 candidates | Success (50 scenes) |
 |---|---|
@@ -527,23 +524,23 @@ choice (`results/plan_select/`):
 | world model on the nominal action sequences | **78%** [65-87] |
 | a random candidate (average over the 13) | 71% |
 
-- **The world model barely beats a random choice (+7 points, not significant) and loses clearly to a trivial
+![per demo: how often its plan works and how often the world model chose it](assets/wm_plan_choice.png)
+
+- **The world model barely beats a random choice (+7 points, not significant) and loses clearly to a fixed
   rule.** Within a scene it separates working from failing candidates only weakly (AUROC 0.69, against 0.93
-  on the held-out test episodes above).
-- **Why: its input, not its imagination.** On the test episodes it was given the actions that were really
-  executed. Here it gets actions from an arm model without contacts, and in these scenes failure comes from
-  contacts. `c521`'s arm stalls on its approach in the simulator (all failures run the full 300 steps); on the
-  nominal arm it does not, so the world model imagines a success (median 2.2 cm from the plate centre) and
-  chose `c521` in 4 scenes, all failures. Its other main error is overconfidence in `17c2` (lowest imagined
-  distance, chosen 14 times, 9 successes).
+  on the test episodes above). It does avoid the worst demo (`a4558`, 6%, never picked).
+- **Why: its input, not its imagination.** `c521`'s arm stalls on its approach in the simulator (all its
+  failures run the full 300 steps); on the nominal arm it does not, so the world model imagines a success
+  (median 2.2 cm from the plate centre) and picked `c521` in 4 scenes, all failures. It is also overconfident
+  in `17c2` (picked 14 times, 9 successes). The stall comes from copying my approach path: intent, which
+  plans its own path to the same grasp side, succeeds with `c521` in 20 of 20 scenes (Q1).
 - **A tempting diagnostic is not valid.** Fed the executed actions instead, the same choice rule reaches 98%.
   But executed actions already contain the outcome: after a collision or a stall the follower's corrections
   differ from the plan, and how much they differ from the nominal actions predicts success on its own (AUROC
   0.84). The 98% mixes the world model's skill with information no planner has before acting.
-- **Lesson:** an action-conditioned world model judges an action sequence, but a closed-loop controller's
-  action sequence depends on what happens. Judging such a plan properly means running the controller inside
-  the imagination: the world model would also have to predict the gripper pose, so the follower can react to
-  the imagined state. Ours predicts only the image and the bowl.
+- **What it would take:** run the controller inside the imagination. The world model would also have to
+  predict the gripper pose, so the follower can react to the imagined state; ours predicts only the image and
+  the bowl.
 
 ## Lessons
 
@@ -597,43 +594,29 @@ What this suggests as a recipe for learning from human video:
 
 ### When do offline RL and a world model help?
 
-**Offline RL (advantage-weighted ACT): no measurable benefit here.**
+**Offline RL (advantage-weighted ACT): no measurable benefit here; it moved failures rather than removing
+them.**
 
-- Result: 64% with critic weights vs 60% on all rollouts unweighted and 57% on successes only (pooled over two
-  evaluations each, intervals overlapping). An early single evaluation suggested +12 points; it did not survive
-  re-evaluation.
-- Why it could have helped: the failures are near-misses that look like successes until the last moment (half
-  end on the plate, just over 3 cm off). Filtered imitation throws them away; plain imitation copies their
-  mistakes. A critic that can tell them apart lets the policy learn from all 600 rollouts while leaning
-  towards the actions that led to success.
-- Why it did not (a reading, not tested): our policy fails mostly at grasping, because the copied approach is
-  hard to imitate (H9). The critic cannot fix that, because the successful rollouts all use the same kind of
-  approach, so the weights have nothing better to point to; what they do down-weight is probably the near-miss
-  end of failed episodes, which is not where our policy fails. More
-  generally: (1) weighting only re-ranks actions that are in the data; it cannot create behaviour
-  the data lacks, such as trying again after a missed grasp. (2) Early in an episode the critic cannot yet
-  tell success from failure (AUROC 0.66 at the first frame), so the weights there are close to uniform and
-  the approach to the grasp, where our policy fails most, probably gets little guidance. (3) It costs data:
-  the effective sample size drops to 36%, which hurts more the smaller the dataset. (4) It needs a critic
-  that is right; this one sees the simulator's state, which a real robot would not have.
-- When it would help: when failures differ from successes in actions the policy can see and copy (here, a
-  consistent grasp style but varied placement), and when evaluations are large enough to detect it.
+- Weighting re-ranks what the data already contains. It cannot create behaviour the data lacks, and it cannot
+  make conflicting demos consistent, which was what limited our policy (Q2).
+- It should help when failures differ from successes in actions the policy can see and copy, and when the
+  critic is informative where the policy fails. Ours was weak at the start of an episode (AUROC 0.66 at the
+  first frame), where the approach to the grasp happens.
+- It has costs: the effective data shrank to 36%, and the critic used the simulator's state, which a real
+  robot would not have.
+- Small effects need repeated evaluations: a 12-point gain from one evaluation was noise.
 
-**World model: helps as an evaluator of executed action sequences; not yet as a planner.**
+**World model: useful as an evaluator of action sequences, not yet as a planner.**
 
 - It works where success is decided by coarse facts visible at 64 px: did the bowl move with the gripper, and
-  where did it end up. From the first frame and a plan's actions it separates successful from failed episodes
-  (AUROC 0.93 within object-relative, 0.97 across strategies) and ranks the retargeting strategies correctly,
-  on demos it never saw.
-- It does not give calibrated probabilities (it is pessimistic, because its reading of a carried bowl is off
-  by more than the 3 cm tolerance), it does not resolve millimetre contact events such as a rim pinch that
-  slips, and at short horizons copying the current frame predicts pixels better.
-- That is also why it was not used to train the policy: imagined rollouts with a 6 cm bowl error cannot teach
-  a millimetre grasp. Screening plans is the use that matches its accuracy.
-- As a decision maker it did not help (yet): choosing among 13 candidate plans per scene, it reached 78%
-  against 71% for a random choice and 98% for always using the most reliable demo. The bottleneck is that a
-  closed-loop plan's actions depend on contacts the world model is never shown before acting; it helps only
-  when the action sequence is known in advance, or when the controller can run inside the imagination.
+  where did it end up. From the first frame and the executed actions it separates successful from failed
+  episodes of unseen demos (AUROC 0.93 within one strategy) and ranks the strategies correctly.
+- Its probabilities are not calibrated (it is pessimistic, because its bowl reading is off by more than the
+  3 cm tolerance), and it does not resolve millimetre contact events such as a rim pinch that slips. For the
+  same reason it was not used to train the policy: imagined rollouts with a 6 cm bowl error cannot teach a
+  millimetre grasp.
+- Choosing a plan for a feedback controller needs the controller inside the imagination: the actions of such
+  a plan depend on contacts, and a world model that is only given planned actions never sees them.
 
 ## Limitations and next steps
 
@@ -679,7 +662,7 @@ checkpoints move between notebooks through a private Hugging Face dataset repo (
 | Second training seed (clean vs planned approach) | Colab | `notebooks/14_second_seed.ipynb`, once per `VARIANT` | ~1.7 h each |
 | Shape vs execution of my approach | Colab | `notebooks/15_fixed_pace_approach.ipynb` | ~3 h |
 | High-resolution videos for this README | Colab | `notebooks/16_hero_videos.ipynb` | ~15 min |
-| README figures | any CPU | `tools/readme_figures.py`, `tools/strategies_figure.py`, `tools/approach_figure_*.py`, `tools/pipeline_figure.py`, `tools/hero_gif.py` (from notebook 16's videos) | minutes |
+| README figures | any CPU | `tools/readme_figures.py`, `tools/strategies_figure.py`, `tools/approach_figure_*.py`, `tools/pipeline_figure.py`, `tools/wm_rl_figures.py`, `tools/hero_gif.py` (from notebook 16's videos) | minutes |
 | Tests (no simulator) | anywhere | `python -m pytest -q tests` | seconds |
 
 Rendering must run on the GPU: Colab lacks the NVIDIA EGL vendor file, so MuJoCo silently renders on the
