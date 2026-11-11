@@ -726,6 +726,10 @@ turns phone captures of a human demo into many robot demos. VRB (Bahl et al., 20
 post-contact trajectories from human videos; SkillMimicGen (Garrett et al., 2024) adapts only the
 object-interaction segments of demonstrations and connects them with free-space motion: both make the split
 between contact and free motion that notebook 12 found necessary.
+Q0-Preview (XPolicyLab, 2026) makes the same split without any human data: a training-free agent in which a
+multimodal model computes the gripper's target pose from 3D points it measures in the robot's camera images,
+and a GPU motion planner (cuRobo) produces the motion in between; its results are reported on the RoboDojo
+leaderboard rather than in its README.
 
 ## Layout
 
