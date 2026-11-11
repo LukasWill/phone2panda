@@ -10,8 +10,9 @@ and tests whether a world model that imagines the robot's camera can judge plans
 
 The question running through the project: **what exactly should be transferred from a human video?** The
 short answer: the contact (where the hand grasps the bowl, how it carries it, where it sets it down), not the
-path the hand took to get there. **Copying the human's free motion fails.** A policy trained on demos that keep my contact and plan the approach succeeds
-98% of the time, as often as one trained on teleoperated demos (97%); copying my whole motion gives 57%.
+path the hand took to get there. **Copying the human's free motion fails.** A policy trained on demos that
+keep my contact and plan the approach succeeds 98% of the time, as often as one trained on teleoperated demos
+(97%); copying my whole motion gives 57%.
 
 ![frames from one of my recordings, background blurred](assets/phone_demo_strip.jpg)
 
